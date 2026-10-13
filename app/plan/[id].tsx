@@ -13,12 +13,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import {
-  doc,
-  onSnapshot,
-} from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../../src/lib/firebase";
-import { getPlan, getPlanRole, checkRequirements } from "../../src/services/planService";
+import {
+  getPlanRole,
+  checkRequirements,
+} from "../../src/services/planService";
 import {
   joinPlan,
   leavePlan,
@@ -29,6 +29,12 @@ import { Plan, PlanJoinRequest } from "../../src/types/plan";
 import { getActivityMeta } from "../../src/constants/activities";
 import { useAuth } from "../../src/context/AuthContext";
 import RequestCard from "../../src/components/plan/RequestCard";
+import AddToCalendarButton from "../../src/components/plan/AddToCalendarButton";
+import ShareButton from "../../src/components/plan/ShareButton";
+import QRCodeModal from "../../src/components/plan/QRCodeModal";
+import CheckInButton from "../../src/components/plan/CheckInButton";
+import SaveAsTemplateButton from "../../src/components/plan/SaveAsTemplateButton";
+import { planShareUrl } from "../../src/services/shareService";
 
 function formatFullDate(ts: any): string {
   if (!ts) return "TBD";
@@ -54,6 +60,7 @@ export default function PlanDetailScreen() {
   const [acting, setActing] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
+  const [showQR, setShowQR] = useState(false);
 
   // Live subscription to plan
   useEffect(() => {
@@ -76,12 +83,7 @@ export default function PlanDetailScreen() {
     return () => unsub();
   }, [id]);
 
-  // Refresh when screen regains focus
-  useFocusEffect(
-    useCallback(() => {
-      // Snapshot already keeps data fresh — this is just for re-entry
-    }, [])
-  );
+  useFocusEffect(useCallback(() => {}, []));
 
   const handlePrimaryAction = async () => {
     if (!plan || !user) return;
@@ -96,7 +98,6 @@ export default function PlanDetailScreen() {
     }
 
     if (role === "participant") {
-      // Leave plan
       Alert.alert(
         "Leave Plan?",
         "You'll be removed from the Plan and its chat. Your Trust Balance escrow will be returned.",
@@ -122,45 +123,41 @@ export default function PlanDetailScreen() {
     }
 
     if (role === "pending") {
-      Alert.alert(
-        "Cancel request?",
-        "You'll withdraw your join request.",
-        [
-          { text: "Keep", style: "cancel" },
-          {
-            text: "Cancel request",
-            style: "destructive",
-            onPress: async () => {
-              setActing(true);
-              try {
-                await leavePlan(plan.id);
-              } catch (e: any) {
-                Alert.alert("Error", e.message);
-              } finally {
-                setActing(false);
-              }
-            },
+      Alert.alert("Cancel request?", "You'll withdraw your join request.", [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Cancel request",
+          style: "destructive",
+          onPress: async () => {
+            setActing(true);
+            try {
+              await leavePlan(plan.id);
+            } catch (e: any) {
+              Alert.alert("Error", e.message);
+            } finally {
+              setActing(false);
+            }
           },
-        ]
+        },
+      ]);
+      return;
+    }
+
+    const check = checkRequirements(plan, user);
+    if (!check.ok) {
+      Alert.alert(
+        "Can't join",
+        check.reason ?? "You don't meet the requirements."
       );
       return;
     }
 
-    // Visitor — check requirements then join
-    const check = checkRequirements(plan, user);
-    if (!check.ok) {
-      Alert.alert("Can't join", check.reason ?? "You don't meet the requirements.");
-      return;
-    }
-
     if (plan.approvalMode === "manual" || plan.approvalMode === "paid_manual") {
-      // Show request modal
       setRequestMessage("");
       setShowRequestModal(true);
       return;
     }
 
-    // Auto-approve join
     await performJoin("");
   };
 
@@ -180,9 +177,7 @@ export default function PlanDetailScreen() {
       } else if (result.status === "waitlisted") {
         Alert.alert("Waitlisted", "We'll notify you if a spot opens up.");
       }
-      if (result.warning) {
-        console.warn("Join warning:", result.warning);
-      }
+      if (result.warning) console.warn("Join warning:", result.warning);
     } catch (e: any) {
       Alert.alert("Could not join", e.message ?? "Try again");
     } finally {
@@ -243,12 +238,13 @@ export default function PlanDetailScreen() {
   const priceLabel =
     plan.costTotal > 0 ? `₹${plan.costPerPerson} / person` : "Free";
   const capacityLabel =
-    plan.capacity === 0 ? "Unlimited" : `${plan.spotsFilled} / ${plan.capacity}`;
+    plan.capacity === 0
+      ? "Unlimited"
+      : `${plan.spotsFilled} / ${plan.capacity}`;
   const isFull = plan.capacity > 0 && plan.spotsFilled >= plan.capacity;
 
-  // Compute CTA
   let cta = "I'm In";
-  let ctaDisabled = false;
+  const ctaDisabled = false;
   if (role === "host") cta = "Open Chat";
   else if (role === "participant") cta = "Leave Plan";
   else if (role === "pending") cta = "Request pending…";
@@ -259,6 +255,7 @@ export default function PlanDetailScreen() {
   else if (plan.costTotal > 0) cta = `Join & Pay ₹${plan.costPerPerson}`;
 
   const showInviteBtn = role === "host" || role === "participant";
+  const showParticipantExtras = role === "host" || role === "participant";
   const pendingRequests = (plan.pendingRequests ?? []) as PlanJoinRequest[];
   const showApprovals = role === "host" && pendingRequests.length > 0;
 
@@ -308,7 +305,9 @@ export default function PlanDetailScreen() {
               <Text style={styles.infoIcon}>🕒</Text>
               <View>
                 <Text style={styles.infoLabel}>When</Text>
-                <Text style={styles.infoValue}>{formatFullDate(plan.startTime)}</Text>
+                <Text style={styles.infoValue}>
+                  {formatFullDate(plan.startTime)}
+                </Text>
                 <Text style={styles.infoSub}>{plan.durationMinutes} min</Text>
               </View>
             </View>
@@ -378,6 +377,35 @@ export default function PlanDetailScreen() {
             </View>
           )}
 
+          {/* Check-in (participants only) */}
+          {showParticipantExtras && <CheckInButton plan={plan} />}
+
+          {/* Add to calendar + Share */}
+          {showParticipantExtras && (
+            <View style={styles.extrasRow}>
+              <View style={{ flex: 1 }}>
+                <AddToCalendarButton plan={plan} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ShareButton plan={plan} />
+              </View>
+            </View>
+          )}
+
+          {/* QR code */}
+          {showParticipantExtras && (
+            <TouchableOpacity
+              style={styles.qrBtn}
+              onPress={() => setShowQR(true)}
+            >
+              <Text style={styles.qrBtnIcon}>📱</Text>
+              <Text style={styles.qrBtnText}>Show QR code to invite</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Save as template (host only) */}
+          {role === "host" && <SaveAsTemplateButton plan={plan} />}
+
           {/* Pending requests (host view) */}
           {showApprovals && (
             <View style={styles.requestsSection}>
@@ -406,7 +434,10 @@ export default function PlanDetailScreen() {
               {plan.participantDetails.slice(0, 6).map((p) => (
                 <View key={p.uid} style={styles.participantWrap}>
                   {p.photoUrl ? (
-                    <Image source={{ uri: p.photoUrl }} style={styles.participant} />
+                    <Image
+                      source={{ uri: p.photoUrl }}
+                      style={styles.participant}
+                    />
                   ) : (
                     <View style={[styles.participant, styles.avatarFallback]}>
                       <Text style={styles.avatarInitial}>
@@ -452,11 +483,7 @@ export default function PlanDetailScreen() {
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[
-            styles.ctaBtn,
-            { flex: 1 },
-            ctaDisabled && { opacity: 0.5 },
-          ]}
+          style={[styles.ctaBtn, { flex: 1 }, ctaDisabled && { opacity: 0.5 }]}
           onPress={handlePrimaryAction}
           disabled={ctaDisabled || acting}
         >
@@ -508,6 +535,14 @@ export default function PlanDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* QR modal */}
+      <QRCodeModal
+        visible={showQR}
+        url={planShareUrl(plan.id)}
+        label={plan.title}
+        onClose={() => setShowQR(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -594,7 +629,28 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   reqText: { fontSize: 12, color: "#1565C0", fontWeight: "600" },
-  requestsSection: { marginTop: 8, marginBottom: 24 },
+  extrasRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 8,
+  },
+  qrBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E0E0E0",
+    backgroundColor: "#FFF",
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  qrBtnIcon: { fontSize: 16 },
+  qrBtnText: { fontSize: 14, fontWeight: "700", color: "#333" },
+  requestsSection: { marginTop: 16, marginBottom: 24 },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "800",

@@ -1,9 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{db}/documents {
+  match /databases/{fsdb}/documents {
 
     // ─────────────────────────────────────────────────────────
-    // Users (Epic 1 + 2 + 5 + 6)
+    // Users
     // ─────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if request.auth != null;
@@ -13,7 +13,13 @@ service cloud.firestore {
         && request.auth.uid == userId
         && !request.resource.data.diff(resource.data)
           .affectedKeys()
-          .hasAny(['hostScore', 'guestScore', 'trustBalance', 'isBanned', 'suspendedUntil', 'strikes']);
+          .hasAny([
+            'hostScore', 'guestScore', 'trustBalance',
+            'isBanned', 'suspendedUntil', 'strikes',
+            'referralCode', 'referralCount', 'referredBy', 'referredAt',
+            'plansCreatedToday', 'plansCreatedThisWeek',
+            'planDayStart', 'planWeekStart'
+          ]);
 
       match /emergencyContacts/{contactId} {
         allow read, write: if request.auth != null
@@ -22,7 +28,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Plans (Epic 3)
+    // Plans
     // ─────────────────────────────────────────────────────────
     match /plans/{planId} {
       allow read: if request.auth != null;
@@ -36,7 +42,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Squads (Epic 4)
+    // Squads
     // ─────────────────────────────────────────────────────────
     match /squads/{squadId} {
       allow read: if request.auth != null;
@@ -58,7 +64,19 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Invitations (Epic 5)
+    // Plan Templates
+    // ─────────────────────────────────────────────────────────
+    match /planTemplates/{templateId} {
+      allow read: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Invitations
     // ─────────────────────────────────────────────────────────
     match /invitations/{invitationId} {
       allow create: if request.auth != null
@@ -73,7 +91,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Partner Swipes (Epic 6)
+    // Partner Swipes
     // ─────────────────────────────────────────────────────────
     match /partnerSwipes/{swipeId} {
       allow read: if request.auth != null
@@ -85,7 +103,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Partner Matches (Epic 6)
+    // Partner Matches
     // ─────────────────────────────────────────────────────────
     match /partnerMatches/{matchId} {
       allow read: if request.auth != null
@@ -97,16 +115,16 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         allow read: if request.auth != null
-          && get(/databases/$(db)/documents/partnerMatches/$(matchId)).data.users.hasAny([request.auth.uid]);
+          && get(/databases/$(fsdb)/documents/partnerMatches/$(matchId)).data.users.hasAny([request.auth.uid]);
         allow create: if request.auth != null
           && request.resource.data.fromUid == request.auth.uid
-          && get(/databases/$(db)/documents/partnerMatches/$(matchId)).data.users.hasAny([request.auth.uid]);
+          && get(/databases/$(fsdb)/documents/partnerMatches/$(matchId)).data.users.hasAny([request.auth.uid]);
         allow update, delete: if false;
       }
     }
 
     // ─────────────────────────────────────────────────────────
-    // SOS Events (Epic 7)
+    // SOS Events
     // ─────────────────────────────────────────────────────────
     match /sosEvents/{sosId} {
       allow read: if request.auth != null;
@@ -119,7 +137,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Live Locations (Epic 7)
+    // Live Locations
     // ─────────────────────────────────────────────────────────
     match /liveLocations/{locId} {
       allow read: if request.auth != null;
@@ -130,7 +148,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Blocks (Epic 7)
+    // Blocks
     // ─────────────────────────────────────────────────────────
     match /blocks/{blockId} {
       allow read: if request.auth != null
@@ -144,7 +162,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Reports (Epic 7)
+    // Reports
     // ─────────────────────────────────────────────────────────
     match /reports/{reportId} {
       allow create: if request.auth != null
@@ -155,7 +173,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Disputes (Epic 7)
+    // Disputes
     // ─────────────────────────────────────────────────────────
     match /disputes/{disputeId} {
       allow create: if request.auth != null
@@ -167,7 +185,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Strikes (Epic 7)
+    // Strikes
     // ─────────────────────────────────────────────────────────
     match /strikes/{strikeId} {
       allow read: if request.auth != null
@@ -176,14 +194,14 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Safety Alerts (Epic 7)
+    // Safety Alerts
     // ─────────────────────────────────────────────────────────
     match /safetyAlerts/{alertId} {
       allow read, write: if false;
     }
 
     // ─────────────────────────────────────────────────────────
-    // Payouts (Epic 8)
+    // Payouts
     // ─────────────────────────────────────────────────────────
     match /payouts/{payoutId} {
       allow read: if request.auth != null
@@ -192,7 +210,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Subscriptions (Epic 8)
+    // Subscriptions
     // ─────────────────────────────────────────────────────────
     match /subscriptions/{uid} {
       allow read: if request.auth != null
@@ -201,7 +219,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Boosts (Epic 8)
+    // Boosts
     // ─────────────────────────────────────────────────────────
     match /boosts/{boostId} {
       allow read: if request.auth != null
@@ -210,7 +228,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Pending Boost Orders (Epic 8)
+    // Pending Boost Orders
     // ─────────────────────────────────────────────────────────
     match /pendingBoostOrders/{orderId} {
       allow read: if request.auth != null
@@ -219,7 +237,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Photographers (Epic 9 — public read, admin SDK writes only)
+    // Photographers (public read)
     // ─────────────────────────────────────────────────────────
     match /photographers/{docId} {
       allow read: if true;
@@ -227,7 +245,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Events (Epic 9 — public read, admin SDK writes only)
+    // Events (public read)
     // ─────────────────────────────────────────────────────────
     match /events/{docId} {
       allow read: if true;
@@ -235,7 +253,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // App Config (Epic 9 — auth read, admin SDK writes only)
+    // App Config
     // ─────────────────────────────────────────────────────────
     match /appConfig/{docId} {
       allow read: if request.auth != null;
@@ -243,8 +261,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Vendors (Epic 8 + 9 — approved public, owner reads own,
-    // admin SDK writes only)
+    // Vendors
     // ─────────────────────────────────────────────────────────
     match /vendors/{vendorId} {
       allow read: if (resource.data.status == "approved")
@@ -252,11 +269,11 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.status == "pending";
-      allow update: if false; // only admin SDK can flip status
+      allow update: if false;
     }
 
     // ─────────────────────────────────────────────────────────
-    // Partnerships (Epic 8 — public read for active)
+    // Partnerships
     // ─────────────────────────────────────────────────────────
     match /partnerships/{partnershipId} {
       allow read: if resource.data.status == "active";
@@ -264,28 +281,28 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Admin alerts (Epic 8 + 9)
+    // Admin collections
     // ─────────────────────────────────────────────────────────
     match /adminAlerts/{alertId} {
       allow read, write: if false;
     }
-
-    // ─────────────────────────────────────────────────────────
-    // Partnership invoices (Epic 8)
-    // ─────────────────────────────────────────────────────────
     match /partnershipInvoices/{invoiceId} {
       allow read, write: if false;
     }
-
-    // ─────────────────────────────────────────────────────────
-    // Admin UIDs (Epic 9 — admin SDK only)
-    // ─────────────────────────────────────────────────────────
     match /adminUids/{uid} {
       allow read, write: if false;
     }
 
     // ─────────────────────────────────────────────────────────
-    // Chats (Epic 3 + 4 + Sprint 4)
+    // Device Tokens
+    // ─────────────────────────────────────────────────────────
+    match /deviceTokens/{uid} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Chats
     // ─────────────────────────────────────────────────────────
     match /chats/{chatId} {
       allow read: if request.auth != null
@@ -296,28 +313,28 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         allow read, write: if request.auth != null
-          && request.auth.uid in get(/databases/$(db)/documents/chats/$(chatId)).data.participants;
+          && request.auth.uid in get(/databases/$(fsdb)/documents/chats/$(chatId)).data.participants;
       }
 
       match /typing/{typingUid} {
         allow read: if request.auth != null
-          && request.auth.uid in get(/databases/$(db)/documents/chats/$(chatId)).data.participants;
+          && request.auth.uid in get(/databases/$(fsdb)/documents/chats/$(chatId)).data.participants;
         allow write: if request.auth != null
           && request.auth.uid == typingUid
-          && request.auth.uid in get(/databases/$(db)/documents/chats/$(chatId)).data.participants;
+          && request.auth.uid in get(/databases/$(fsdb)/documents/chats/$(chatId)).data.participants;
       }
 
       match /reads/{readerUid} {
         allow read: if request.auth != null
-          && request.auth.uid in get(/databases/$(db)/documents/chats/$(chatId)).data.participants;
+          && request.auth.uid in get(/databases/$(fsdb)/documents/chats/$(chatId)).data.participants;
         allow write: if request.auth != null
           && request.auth.uid == readerUid
-          && request.auth.uid in get(/databases/$(db)/documents/chats/$(chatId)).data.participants;
+          && request.auth.uid in get(/databases/$(fsdb)/documents/chats/$(chatId)).data.participants;
       }
     }
 
     // ─────────────────────────────────────────────────────────
-    // Score Events (Epic 2)
+    // Score Events
     // ─────────────────────────────────────────────────────────
     match /scoreEvents/{eventId} {
       allow read: if request.auth != null
@@ -328,7 +345,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Escrow (Epic 2 + Sprint 4)
+    // Escrow
     // ─────────────────────────────────────────────────────────
     match /escrow/{escrowId} {
       allow read: if request.auth != null
@@ -337,7 +354,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Ratings (Epic 2 + 3)
+    // Ratings
     // ─────────────────────────────────────────────────────────
     match /ratings/{ratingId} {
       allow read: if request.auth != null;
@@ -347,7 +364,7 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Activity Feed (Epic 3)
+    // Activity Feed
     // ─────────────────────────────────────────────────────────
     match /activityFeed/{eventId} {
       allow read: if request.auth != null;
@@ -359,6 +376,6 @@ service cloud.firestore {
   // Helper functions
   // ─────────────────────────────────────────────────────────
   function getTrust(uid) {
-    return get(/databases/$(db)/documents/users/$(uid)).data.trustBalance;
+    return get(/databases/$(fsdb)/documents/users/$(uid)).data.trustBalance;
   }
 }

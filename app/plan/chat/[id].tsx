@@ -24,12 +24,15 @@ import {
   subscribeToReads,
   sendTextMessage,
   sendImageMessage,
+  sendVoiceMessage,
   setTyping,
   markChatRead,
 } from "../../../src/services/chatService";
 import { ChatMessage } from "../../../src/types/plan";
 import SOSButton from "../../../src/components/safety/SOSButton";
 import LiveLocationToggle from "../../../src/components/safety/LiveLocationToggle";
+import VoiceRecorder from "../../../src/components/chat/VoiceRecorder";
+import VoiceMessage from "../../../src/components/chat/VoiceMessage";
 
 function formatTime(ts: any): string {
   if (!ts) return "";
@@ -56,6 +59,7 @@ export default function PlanChatScreen() {
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [reads, setReads] = useState<Record<string, number>>({});
+  const [recordingMode, setRecordingMode] = useState(false);
 
   const listRef = useRef<FlatList>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -206,9 +210,7 @@ export default function PlanChatScreen() {
             data={messages}
             keyExtractor={(m) => m.id}
             contentContainerStyle={styles.messages}
-            onLayout={() =>
-              listRef.current?.scrollToEnd({ animated: false })
-            }
+            onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
             renderItem={({ item }) => {
               const isSystem = item.type === "system";
               const isMine = item.fromUid === user.uid;
@@ -221,10 +223,7 @@ export default function PlanChatScreen() {
               }
               return (
                 <View
-                  style={[
-                    styles.row,
-                    isMine ? styles.rowMine : styles.rowTheirs,
-                  ]}
+                  style={[styles.row, isMine ? styles.rowMine : styles.rowTheirs]}
                 >
                   {!isMine && (
                     <>
@@ -248,28 +247,24 @@ export default function PlanChatScreen() {
                       isMine ? styles.bubbleMine : styles.bubbleTheirs,
                     ]}
                   >
-                    {!isMine && (
-                      <Text style={styles.sender}>{item.fromName}</Text>
-                    )}
-                    {item.type === "image" && item.imageUrl ? (
-                      <Image
-                        source={{ uri: item.imageUrl }}
-                        style={styles.image}
+                    {!isMine && <Text style={styles.sender}>{item.fromName}</Text>}
+
+                    {item.type === "voice" && item.voiceUrl ? (
+                      <VoiceMessage
+                        url={item.voiceUrl}
+                        durationMs={item.voiceDurationMs ?? 0}
+                        mine={isMine}
                       />
+                    ) : item.type === "image" && item.imageUrl ? (
+                      <Image source={{ uri: item.imageUrl }} style={styles.image} />
                     ) : (
-                      <Text
-                        style={
-                          isMine ? styles.textMine : styles.textTheirs
-                        }
-                      >
+                      <Text style={isMine ? styles.textMine : styles.textTheirs}>
                         {item.text}
                       </Text>
                     )}
+
                     <Text
-                      style={[
-                        styles.time,
-                        isMine ? styles.timeMine : styles.timeTheirs,
-                      ]}
+                      style={[styles.time, isMine ? styles.timeMine : styles.timeTheirs]}
                     >
                       {formatTime(item.createdAt)}
                     </Text>
@@ -289,38 +284,57 @@ export default function PlanChatScreen() {
         )}
 
         {/* Input */}
-        <View style={styles.inputBar}>
-          <TouchableOpacity
-            style={styles.attachBtn}
-            onPress={handleImage}
-            disabled={sending}
-          >
-            <Text style={styles.attachIcon}>📷</Text>
-          </TouchableOpacity>
-          <TextInput
-            style={styles.input}
-            placeholder="Message"
-            placeholderTextColor="#999"
-            value={text}
-            onChangeText={handleTextChange}
-            multiline
-            maxLength={1000}
+        {recordingMode ? (
+          <VoiceRecorder
+            onSend={async (uri, durationMs) => {
+              try {
+                await sendVoiceMessage(chatId, user, uri, durationMs);
+              } catch (e: any) {
+                Alert.alert("Could not send voice", e.message);
+              } finally {
+                setRecordingMode(false);
+              }
+            }}
+            onCancel={() => setRecordingMode(false)}
           />
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (!text.trim() || sending) && { opacity: 0.5 },
-            ]}
-            onPress={handleSend}
-            disabled={!text.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.sendText}>Send</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        ) : (
+          <View style={styles.inputBar}>
+            <TouchableOpacity
+              style={styles.attachBtn}
+              onPress={() => setRecordingMode(true)}
+              disabled={sending}
+            >
+              <Text style={styles.attachIcon}>🎤</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.attachBtn}
+              onPress={handleImage}
+              disabled={sending}
+            >
+              <Text style={styles.attachIcon}>📷</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              placeholder="Message"
+              placeholderTextColor="#999"
+              value={text}
+              onChangeText={handleTextChange}
+              multiline
+              maxLength={1000}
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, (!text.trim() || sending) && { opacity: 0.5 }]}
+              onPress={handleSend}
+              disabled={!text.trim() || sending}
+            >
+              {sending ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.sendText}>Send</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

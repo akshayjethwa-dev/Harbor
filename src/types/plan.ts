@@ -45,10 +45,6 @@ export interface PlanParticipant {
   approved: boolean;
 }
 
-/**
- * Rich pending request object stored in plan.pendingRequests[].
- * Keeps host UI fast without extra reads.
- */
 export interface PlanJoinRequest {
   uid: string;
   name: string;
@@ -60,6 +56,13 @@ export interface PlanJoinRequest {
   message: string;
   requestedAt: Timestamp | any;
   autoDeclineAt: Timestamp | any;
+}
+
+export interface CheckInRecord {
+  at: Timestamp | any;
+  latitude: number;
+  longitude: number;
+  distanceMeters: number | null;
 }
 
 // ─── Main Plan document ───
@@ -75,6 +78,7 @@ export interface Plan {
   activity: PlanActivity;
   activityCustom?: string;
   title: string;
+  titleLower?: string;
   description: string;
 
   startTime: Timestamp | any;
@@ -109,10 +113,26 @@ export interface Plan {
   status: PlanStatus;
   createdAt: Timestamp | any;
   updatedAt: Timestamp | any;
+
+  // ─── Feature 8: Check-in ───
+  checkIns?: Record<string, CheckInRecord>;
+  noShowUids?: string[];
+  noShowMarkedAt?: Timestamp | any;
+
+  // ─── Feature 9: Reminders ───
+  reminded24h?: boolean;
+  reminded2h?: boolean;
+
+  // ─── Feature: Disputes ───
+  hasOpenDispute?: boolean;
+  disputeId?: string;
+
+  // ─── Feature: Completed ───
+  completedAt?: Timestamp | any;
 }
 
 // ─── Chat ───
-export type ChatMessageType = "text" | "image" | "system";
+export type ChatMessageType = "text" | "image" | "system" | "voice";
 
 export interface ChatMessage {
   id: string;
@@ -122,6 +142,8 @@ export interface ChatMessage {
   type: ChatMessageType;
   text: string;
   imageUrl: string | null;
+  voiceUrl?: string | null;
+  voiceDurationMs?: number | null;
   createdAt: Timestamp | any;
 }
 
@@ -136,7 +158,7 @@ export interface ChatReadEntry {
   lastReadAt: Timestamp | any;
 }
 
-// ─── Draft type for create wizard (unchanged) ───
+// ─── Draft type ───
 export interface PlanDraft {
   activity: PlanActivity | null;
   activityCustom: string;

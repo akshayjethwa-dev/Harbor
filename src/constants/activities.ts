@@ -39,7 +39,59 @@ export const DURATION_OPTIONS = [
   { value: 480, label: "Full day (8h)" },
 ];
 
+// ─────────────────────────────────────────────────────────
+// 120+ Indian cities, grouped alphabetically for easy scanning
+// ─────────────────────────────────────────────────────────
 export const CITIES = [
-  "Mumbai", "Pune", "Ahmedabad", "Surat", "Vadodara",
-  "Rajkot", "Delhi", "Bangalore", "Hyderabad", "Chennai",
-];
+  // A
+  "Agartala", "Agra", "Ahmedabad", "Aizawl", "Ajmer", "Aligarh", "Allahabad",
+  "Alwar", "Ambala", "Amravati", "Amritsar", "Anand", "Aurangabad",
+  // B
+  "Bangalore", "Bareilly", "Belgaum", "Bengaluru", "Bhagalpur", "Bharuch",
+  "Bhavnagar", "Bhilai", "Bhiwandi", "Bhopal", "Bhubaneswar", "Bikaner",
+  "Bilaspur", "Bokaro",
+  // C
+  "Chandigarh", "Chennai", "Coimbatore", "Cuttack",
+  // D
+  "Dehradun", "Delhi", "Dhanbad", "Dharamshala", "Durgapur",
+  // E
+  "Erode",
+  // F
+  "Faridabad", "Firozabad",
+  // G
+  "Gandhinagar", "Gangtok", "Ghaziabad", "Gorakhpur", "Guntur", "Gurgaon",
+  "Guwahati", "Gwalior",
+  // H
+  "Hisar", "Howrah", "Hubli", "Hyderabad",
+  // I
+  "Imphal", "Indore", "Itanagar",
+  // J
+  "Jabalpur", "Jaipur", "Jalandhar", "Jammu", "Jamnagar", "Jamshedpur",
+  "Jhansi", "Jodhpur",
+  // K
+  "Kakinada", "Kalyan", "Kanpur", "Kochi", "Kohima", "Kolhapur", "Kolkata",
+  "Kollam", "Kota", "Kozhikode", "Kurnool",
+  // L
+  "Lucknow", "Ludhiana",
+  // M
+  "Madurai", "Mangalore", "Meerut", "Moradabad", "Mumbai", "Mysore",
+  // N
+  "Nagpur", "Nanded", "Nashik", "Navi Mumbai", "Noida",
+  // P
+  "Panaji", "Patna", "Pimpri", "Pondicherry", "Prayagraj", "Pune",
+  // R
+  "Raipur", "Rajahmundry", "Rajkot", "Ranchi", "Rourkela",
+  // S
+  "Salem", "Shillong", "Shimla", "Siliguri", "Solapur", "Srinagar", "Surat",
+  // T
+  "Thane", "Thanjavur", "Thiruvananthapuram", "Thrissur", "Tiruchirappalli",
+  "Tirunelveli", "Tirupati", "Tiruppur",
+  // U
+  "Udaipur", "Ujjain",
+  // V
+  "Vadodara", "Varanasi", "Vasai", "Vellore", "Vijayawada", "Visakhapatnam",
+  // W
+  "Warangal",
+  // International / Other
+  "Dubai", "Singapore", "London", "Toronto", "New York", "Sydney",
+].sort();

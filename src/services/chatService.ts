@@ -13,18 +13,14 @@ import {
   Timestamp,
   Unsubscribe,
 } from "firebase/firestore";
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { GarbaCrewUser } from "../types/user";
 import { ChatMessage } from "../types/plan";
 
-/**
- * Subscribe to messages in a chat (newest last).
- */
+// ─────────────────────────────────────────────────────────
+// Subscribe to messages
+// ─────────────────────────────────────────────────────────
 export function subscribeToMessages(
   chatId: string,
   onMessages: (msgs: ChatMessage[]) => void
@@ -35,15 +31,13 @@ export function subscribeToMessages(
     limit(500)
   );
   return onSnapshot(q, (snap) => {
-    onMessages(
-      snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMessage))
-    );
+    onMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMessage)));
   });
 }
 
-/**
- * Send a text message.
- */
+// ─────────────────────────────────────────────────────────
+// Text messages
+// ─────────────────────────────────────────────────────────
 export async function sendTextMessage(
   chatId: string,
   me: GarbaCrewUser,
@@ -59,19 +53,20 @@ export async function sendTextMessage(
     type: "text",
     text: trimmed,
     imageUrl: null,
+    voiceUrl: null,
+    voiceDurationMs: null,
     createdAt: serverTimestamp(),
   });
 
   await updateDoc(doc(db, "chats", chatId), {
-    lastMessage:
-      trimmed.length > 60 ? trimmed.slice(0, 60) + "…" : trimmed,
+    lastMessage: trimmed.length > 60 ? trimmed.slice(0, 60) + "…" : trimmed,
     lastMessageAt: serverTimestamp(),
   });
 }
 
-/**
- * Send an image message.
- */
+// ─────────────────────────────────────────────────────────
+// Image messages
+// ─────────────────────────────────────────────────────────
 export async function sendImageMessage(
   chatId: string,
   me: GarbaCrewUser,
@@ -91,6 +86,8 @@ export async function sendImageMessage(
     type: "image",
     text: "",
     imageUrl: url,
+    voiceUrl: null,
+    voiceDurationMs: null,
     createdAt: serverTimestamp(),
   });
 
@@ -100,9 +97,43 @@ export async function sendImageMessage(
   });
 }
 
-/**
- * Send a system message (used by Cloud Functions and by approval flow).
- */
+// ─────────────────────────────────────────────────────────
+// Voice messages (Feature 11)
+// ─────────────────────────────────────────────────────────
+export async function sendVoiceMessage(
+  chatId: string,
+  me: GarbaCrewUser,
+  localUri: string,
+  durationMs: number
+): Promise<void> {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+  const path = `chats/${chatId}/${me.uid}/${Date.now()}.m4a`;
+  const ref = storageRef(storage, path);
+  await uploadBytes(ref, blob, { contentType: "audio/m4a" });
+  const url = await getDownloadURL(ref);
+
+  await addDoc(collection(db, "chats", chatId, "messages"), {
+    fromUid: me.uid,
+    fromName: me.name ?? "Someone",
+    fromPhotoUrl: me.photoUrl ?? null,
+    type: "voice",
+    text: "",
+    imageUrl: null,
+    voiceUrl: url,
+    voiceDurationMs: durationMs,
+    createdAt: serverTimestamp(),
+  });
+
+  await updateDoc(doc(db, "chats", chatId), {
+    lastMessage: "🎤 Voice message",
+    lastMessageAt: serverTimestamp(),
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// System messages
+// ─────────────────────────────────────────────────────────
 export async function sendSystemMessage(
   chatId: string,
   text: string
@@ -114,13 +145,15 @@ export async function sendSystemMessage(
     type: "system",
     text,
     imageUrl: null,
+    voiceUrl: null,
+    voiceDurationMs: null,
     createdAt: serverTimestamp(),
   });
 }
 
-/**
- * Typing indicator.
- */
+// ─────────────────────────────────────────────────────────
+// Typing indicator
+// ─────────────────────────────────────────────────────────
 export async function setTyping(
   chatId: string,
   me: GarbaCrewUser,
@@ -138,9 +171,6 @@ export async function setTyping(
   }
 }
 
-/**
- * Subscribe to typing users (excluding me, last 6 seconds).
- */
 export function subscribeToTyping(
   chatId: string,
   myUid: string,
@@ -153,17 +183,15 @@ export function subscribeToTyping(
       const data = d.data();
       if (data.uid === myUid) return;
       const at = (data.at as Timestamp)?.toMillis?.() ?? 0;
-      if (now - at < 6000) {
-        names.push(data.name);
-      }
+      if (now - at < 6000) names.push(data.name);
     });
     onTyping(names);
   });
 }
 
-/**
- * Mark messages as read up to now.
- */
+// ─────────────────────────────────────────────────────────
+// Read receipts
+// ─────────────────────────────────────────────────────────
 export async function markChatRead(
   chatId: string,
   uid: string
@@ -175,9 +203,6 @@ export async function markChatRead(
   );
 }
 
-/**
- * Subscribe to read receipts (map of uid → last read timestamp).
- */
 export function subscribeToReads(
   chatId: string,
   onReads: (reads: Record<string, number>) => void

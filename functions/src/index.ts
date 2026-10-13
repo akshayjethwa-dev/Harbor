@@ -66,7 +66,7 @@ export {
   adminUserAction,
 } from "./admin";
 
-// ─── Epic 10: Notifications ───
+// ─── Epic 10: Notifications + Account ───
 export {
   onChatMessageCreated,
   onJoinRequestCreated,
@@ -74,3 +74,22 @@ export {
   onInvitationCreated,
   sendPlanReminders,
 } from "./notifications";
+export { deleteMyAccount } from "./accountDeletion";
+
+// ─── Feature 8: Plan Check-in ───
+export { checkInToPlan, markNoShows } from "./checkin";
+
+// ─── Feature 10: Referral Bonus ───
+export {
+  getOrCreateReferralCode,
+  redeemReferralCode,
+} from "./referrals";
+
+// ─── Feature 15: Rate Limits ───
+export {
+  getPlanCreationQuota,
+  onPlanCreatedUpdateQuota,
+} from "./rateLimits";
+
+// ─── One-time backfill (comment out after running) ───
+export { backfillSearchFields } from "./backfill";

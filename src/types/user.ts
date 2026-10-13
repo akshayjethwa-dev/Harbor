@@ -10,6 +10,7 @@ export interface GarbaCrewUser {
 
   // ─── Profile fields (Epic 1) ───
   name?: string;
+  nameLower?: string;
   age?: number;
   gender?: "male" | "female" | "other";
   city?: string;
@@ -23,7 +24,7 @@ export interface GarbaCrewUser {
   yearsAttendingNavratri?: number;
   groupSizePreference?: number;
   lookingFor?: "friend" | "partner" | "crew" | "all";
-  vibeScore?: number; // 1 = introvert, 10 = extrovert
+  vibeScore?: number;
   favoriteActivitySong?: string;
   postActivityRitual?: string;
   bio?: string;
@@ -35,42 +36,41 @@ export interface GarbaCrewUser {
   profileScore: number;
 
   // ─── Epic 2: Dual Score & Trust System ───
-  /** Reliability score as a host (0-100). Starts at 50. */
   hostScore: number;
-  /** Reliability score as a guest (0-100). Starts at 50. */
   guestScore: number;
-  /** Non-monetary commitment stake (0-100). Starts at 50. */
   trustBalance: number;
-  /** Amount currently held in escrow for pending plans. */
   escrowBalance: number;
-  /** Consecutive successful plans completed. */
   streak: number;
-  /** Lifetime count of plans hosted. */
   plansHosted: number;
-  /** Lifetime count of plans joined as participant. */
   plansJoined: number;
-  /** Lifetime count of plans completed (hosted or joined). */
   completedPlans: number;
-  /** Lifetime count of plans created. */
   plansCreatedCount?: number;
-
-  // ─── Epic 5: Search ───
-  /** Lowercased name for prefix search. */
-  nameLower?: string;
+  noShowCount?: number;
 
   // ─── Epic 6: Partner Discovery ───
-  /** Whether the user has opted into partner mode. */
   lookingForPartner?: boolean;
-  /** Preferred partner vibe (e.g., "traditional", "techno"). */
   partnerVibe?: string;
 
-  // ─── Epic 2: Moderation fields ───
-  /** Last time a rating was applied to this user. */
+  // ─── Epic 2: Moderation ───
   lastRatedAt?: Date;
-  /** If set, user is suspended until this date. */
   suspendedUntil?: Date;
-  /** If true, user is permanently banned. */
   isBanned?: boolean;
+
+  // ─── Feature 10: Referral ───
+  referralCode?: string;
+  referralCount?: number;
+  referredBy?: string;
+  referredAt?: Date;
+
+  // ─── Feature 15: Rate Limits ───
+  plansCreatedToday?: number;
+  plansCreatedThisWeek?: number;
+  planDayStart?: any;
+  planWeekStart?: any;
+
+  // ─── Feature: Deletion ───
+  isDeleted?: boolean;
+  deletedAt?: Date;
 }
 
 export interface ProfileSetupData {

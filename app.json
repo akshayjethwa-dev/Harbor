@@ -26,7 +26,9 @@
           "locationWhenInUsePermission": "GarbaCrew uses your location to find Plans near you."
         }
       ],
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-localization",
+      "@react-native-community/datetimepicker"
     ],
     "ios": {
       "bundleIdentifier": "com.garbacrew.app",

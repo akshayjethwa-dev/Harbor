@@ -48,8 +48,11 @@ export async function createSquad(
     joinedAt: Timestamp.now(),
   };
 
+  // ✅ NOTE: `name` and `nameLower` appear exactly ONCE each.
+  // Do not add another `nameLower` line — that causes TS1117.
   const squadDoc = {
     name: draft.name.trim(),
+    nameLower: draft.name.trim().toLowerCase(),
     description: draft.description.trim(),
 
     activity: draft.activity,

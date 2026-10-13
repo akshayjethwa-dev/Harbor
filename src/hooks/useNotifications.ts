@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -34,18 +33,13 @@ export function useNotifications() {
   }, [user]);
 
   // Attach notification-tap routing (native only)
+  // We use a runtime check inside notificationService to prevent the
+  // "Listening to push token changes is not yet fully supported on web" warning.
   useEffect(() => {
     if (isWeb) return;
     const cleanup = attachNotificationTapHandler();
     return cleanup;
   }, []);
-
-  // Clear the badge when the app opens (native only)
-  useEffect(() => {
-    if (isWeb) return;
-    if (!user) return;
-    Notifications.setBadgeCountAsync(0).catch(() => {});
-  }, [user]);
 
   return {
     permissionGranted,

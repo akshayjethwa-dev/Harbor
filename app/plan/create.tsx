@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   usePlanCreateStore,
   TOTAL_PLAN_STEPS,
@@ -20,6 +20,11 @@ import {
 import { useAuth } from "../../src/context/AuthContext";
 import { createPlan } from "../../src/services/planService";
 import { checkTrustAccess } from "../../src/services/accessControl";
+import {
+  getTemplate,
+  markTemplateUsed,
+  templateToPlanDraftPartial,
+} from "../../src/services/templateService";
 
 import Step1Activity from "../../src/components/plan-create/Step1Activity";
 import Step2Details from "../../src/components/plan-create/Step2Details";
@@ -33,92 +38,119 @@ import Step8Review from "../../src/components/plan-create/Step8Review";
 export default function CreatePlanScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { currentStep, nextStep, prevStep, draft, reset } =
+  const { templateId } = useLocalSearchParams<{ templateId?: string }>();
+
+  const { currentStep, nextStep, prevStep, draft, reset, updateDraft } =
     usePlanCreateStore();
+  const lastSavedAt = usePlanCreateStore((s) => s.lastSavedAt);
   const [saving, setSaving] = useState(false);
 
-  // Guard: user must be able to create Plans
   const access = checkTrustAccess(user, "create_plan");
 
-  // ─────────────────────────────────────────────────────────
-  // Exit flow — works on web AND native
-  // ─────────────────────────────────────────────────────────
-  const performExit = useCallback(() => {
-    // 1. Reset the wizard state FIRST
-    reset();
+  // ─── Template loader ───
+  const templateLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!templateId || templateLoadedRef.current) return;
+    templateLoadedRef.current = true;
+    (async () => {
+      try {
+        const template = await getTemplate(templateId);
+        if (!template) return;
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const partial = templateToPlanDraftPartial(template, tomorrow, "18:30");
+        updateDraft(partial);
+        await markTemplateUsed(templateId);
+      } catch (e: any) {
+        console.warn("Template load failed:", e);
+      }
+    })();
+  }, [templateId, updateDraft]);
 
-    // 2. Navigate away with fallbacks
+  // ─── Draft restore ───
+  const promptedRef = useRef(false);
+  useEffect(() => {
+    if (promptedRef.current) return;
+    if (templateId) return;
+    if (!lastSavedAt) return;
+    const hoursAgo = (Date.now() - lastSavedAt) / (1000 * 60 * 60);
+    if (hoursAgo > 24) {
+      reset();
+      return;
+    }
+    if (currentStep === 0 && !draft.activity) return;
+    promptedRef.current = true;
+    const message = `You have an unsaved Plan draft from ${Math.round(
+      hoursAgo
+    )}h ago. Restore it?`;
+    if (Platform.OS === "web") {
+      // @ts-ignore
+      const yes = window.confirm(message);
+      if (!yes) reset();
+    } else {
+      Alert.alert("Restore draft?", message, [
+        { text: "Discard", style: "destructive", onPress: reset },
+        { text: "Restore", style: "default" },
+      ]);
+    }
+  }, [lastSavedAt, currentStep, draft.activity, reset, templateId]);
+
+  // ─── Exit flow ───
+  const performExit = useCallback(() => {
+    reset();
     try {
       if (router.canGoBack()) {
         router.back();
       } else {
-        // Direct deep-link or hard reload — nothing to go back to
         router.replace("/(tabs)/crews" as any);
       }
-    } catch (err) {
-      // Last-resort fallback
+    } catch {
       router.replace("/(tabs)/crews" as any);
     }
   }, [reset, router]);
 
   const handleClose = useCallback(() => {
-    // ─── WEB: use window.confirm (Alert.alert callbacks don't fire) ───
     if (Platform.OS === "web") {
-      // @ts-ignore — window exists on web
+      // @ts-ignore
       const confirmed = window.confirm(
         "Discard this Plan?\n\nYour progress will be lost."
       );
       if (confirmed) performExit();
       return;
     }
-
-    // ─── NATIVE: Alert.alert works fine ───
     Alert.alert(
       "Discard Plan?",
       "Your progress will be lost.",
       [
         { text: "Keep editing", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: performExit,
-        },
+        { text: "Discard", style: "destructive", onPress: performExit },
       ],
       { cancelable: true }
     );
   }, [performExit]);
 
-  // ─────────────────────────────────────────────────────────
-  // Android hardware back button → close flow
-  // ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       handleClose();
-      return true; // prevent default
+      return true;
     });
     return () => sub.remove();
   }, [handleClose]);
 
-  // ─────────────────────────────────────────────────────────
-  // Web: warn before closing the browser tab with unsaved data
-  // ─────────────────────────────────────────────────────────
+  // Web: warn on tab close with unsaved progress
   useEffect(() => {
     if (Platform.OS !== "web") return;
-
     const hasProgress =
       !!draft.activity ||
       !!draft.title.trim() ||
       !!draft.startTime ||
       currentStep > 0;
-
     if (!hasProgress) return;
-
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
-
     // @ts-ignore
     window.addEventListener("beforeunload", handler);
     return () => {
@@ -127,9 +159,7 @@ export default function CreatePlanScreen() {
     };
   }, [draft, currentStep]);
 
-  // ─────────────────────────────────────────────────────────
-  // Guard: user can't create Plans (low Trust Balance, etc.)
-  // ─────────────────────────────────────────────────────────
+  // Access guard
   if (!access.allowed) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -174,24 +204,17 @@ export default function CreatePlanScreen() {
           return false;
         }
         return true;
-
       case 1:
         if (!draft.title.trim()) {
           Alert.alert("Add a title", "Give your Plan a short title.");
           return false;
         }
         if (!draft.startDate) {
-          Alert.alert(
-            "Pick a date",
-            "Enter a valid date in YYYY-MM-DD format."
-          );
+          Alert.alert("Pick a date", "Select a date for your Plan.");
           return false;
         }
         if (!/^\d{2}:\d{2}$/.test(draft.startTime)) {
-          Alert.alert(
-            "Pick a time",
-            "Enter time in HH:MM format (e.g., 18:30)."
-          );
+          Alert.alert("Pick a time", "Select a start time for your Plan.");
           return false;
         }
         {
@@ -199,12 +222,14 @@ export default function CreatePlanScreen() {
           const start = new Date(draft.startDate);
           start.setHours(hh, mm, 0, 0);
           if (start.getTime() <= Date.now()) {
-            Alert.alert("Future date", "Plan start time must be in the future.");
+            Alert.alert(
+              "Future date required",
+              "Plan start time must be in the future."
+            );
             return false;
           }
         }
         return true;
-
       case 2:
         if (!draft.city) {
           Alert.alert("Pick a city", "Select the city for your Plan.");
@@ -215,7 +240,6 @@ export default function CreatePlanScreen() {
           return false;
         }
         return true;
-
       case 3:
         if (draft.costTotal > 0 && draft.capacity === 0) {
           Alert.alert(
@@ -225,7 +249,6 @@ export default function CreatePlanScreen() {
           return false;
         }
         return true;
-
       default:
         return true;
     }
@@ -240,18 +263,83 @@ export default function CreatePlanScreen() {
     await submitPlan();
   };
 
+  // ─────────────────────────────────────────────────────────
+  // Post Plan — with robust navigation
+  // ─────────────────────────────────────────────────────────
   const submitPlan = async () => {
-    if (!user) return;
+    if (!user) {
+      Alert.alert("Error", "You must be signed in.");
+      return;
+    }
+
     setSaving(true);
+    console.log("📋 Creating Plan...", {
+      uid: user.uid,
+      activity: draft.activity,
+      title: draft.title,
+      startDate: draft.startDate,
+      startTime: draft.startTime,
+      city: draft.city,
+    });
+
     try {
       const planId = await createPlan(user, draft);
+      console.log("✅ Plan created:", planId);
+
+      // Reset wizard state before navigating
       reset();
-      router.replace({
-        pathname: "/plan/[id]" as any,
-        params: { id: planId },
-      });
+
+      // ─── Robust navigation with multiple fallbacks ───
+      const targetPath = `/plan/${planId}`;
+
+      // Small delay to let React unmount any pending UI updates
+      await new Promise((r) => setTimeout(r, 100));
+
+      try {
+        // Attempt 1: direct string path (most reliable in Expo Router v4)
+        router.replace(targetPath as any);
+        console.log("✅ Navigated via router.replace to", targetPath);
+      } catch (navErr) {
+        console.warn("router.replace failed, trying push:", navErr);
+        try {
+          // Attempt 2: router.push
+          router.push(targetPath as any);
+          console.log("✅ Navigated via router.push to", targetPath);
+        } catch (pushErr) {
+          console.warn("router.push failed, trying hard nav:", pushErr);
+          // Attempt 3: hard navigation on web
+          if (Platform.OS === "web") {
+            // @ts-ignore
+            window.location.href = targetPath;
+          } else {
+            // Attempt 4: dismiss modal then push (native)
+            try {
+              // @ts-ignore
+              if (router.dismiss) {
+                // @ts-ignore
+                router.dismiss();
+              }
+            } catch {}
+            setTimeout(() => {
+              try {
+                router.push(targetPath as any);
+              } catch (finalErr) {
+                Alert.alert(
+                  "Plan created!",
+                  `Plan ID: ${planId}\n\nPlease open it from the Discover tab.`,
+                  [{ text: "OK" }]
+                );
+              }
+            }, 200);
+          }
+        }
+      }
     } catch (e: any) {
-      Alert.alert("Could not create Plan", e.message ?? "Try again.");
+      console.error("❌ Plan creation failed:", e);
+      Alert.alert(
+        "Could not create Plan",
+        e.message ?? "Please try again."
+      );
     } finally {
       setSaving(false);
     }
@@ -265,14 +353,11 @@ export default function CreatePlanScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* ─── Header ─── */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={handleClose}
             style={styles.closeBtn}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Close Plan creation"
           >
             <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
@@ -288,7 +373,6 @@ export default function CreatePlanScreen() {
           </Text>
         </View>
 
-        {/* ─── Step content ─── */}
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingTop: 16 }}
@@ -297,7 +381,6 @@ export default function CreatePlanScreen() {
           {steps[currentStep]}
         </ScrollView>
 
-        {/* ─── Footer nav ─── */}
         <View style={styles.footer}>
           {currentStep > 0 && (
             <TouchableOpacity
