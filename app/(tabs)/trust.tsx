@@ -39,7 +39,7 @@ export default function TrustScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Trust Dashboard</Text>
         <Text style={styles.subtitle}>
-          Your standing in the GarbaCrew community.
+          Your standing in the Harbor community.
         </Text>
 
         {/* Trust Balance Hero */}

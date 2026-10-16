@@ -84,7 +84,7 @@ export default function App() {
         <header className="sticky top-0 z-30 bg-[#0D0D0D]/90 backdrop-blur-md px-5 py-3 border-b border-[#1A1A1A] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">🪔</span>
-            <span className="text-lg font-extrabold text-[#FF6B35] tracking-tight">GarbaCrew</span>
+            <span className="text-lg font-extrabold text-[#FF6B35] tracking-tight">Harbor</span>
           </div>
           <div className="flex items-center gap-1 bg-[#1A1A1A] border border-[#2A2A2A] px-2.5 py-1 rounded-full text-[11px] text-[#B0B0B0]">
             <Sparkles className="w-3 h-3 text-amber-400" />

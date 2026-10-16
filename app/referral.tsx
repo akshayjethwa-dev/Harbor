@@ -39,7 +39,7 @@ export default function ReferralScreen() {
     if (!code) return;
     const message = buildReferralMessage(code, user?.name ?? "a friend");
     try {
-      await Share.share({ message, title: "Join GarbaCrew" });
+      await Share.share({ message, title: "Join Harbor" });
     } catch (e) {
       if (Platform.OS === "web") {
         // Fallback: copy to clipboard

@@ -47,7 +47,7 @@ export default function StepBasicInfo() {
         maxLength={2}
       />
       {data.age !== null && data.age < 18 && (
-        <Text style={styles.errorText}>Must be 18+ to use GarbaCrew</Text>
+        <Text style={styles.errorText}>Must be 18+ to use Harbor</Text>
       )}
 
       <Text style={styles.label}>Gender</Text>

@@ -1,33 +1,29 @@
 // src/config/firebase.ts
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import * as FirebaseAuth from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { Platform } from 'react-native';
 
-const getEnv = (key: string): string | undefined => {
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-    return (import.meta as any).env[key];
-  }
-  const globalObj = typeof globalThis !== 'undefined' ? (globalThis as any) : {};
-  if (globalObj.process && globalObj.process.env) {
-    return globalObj.process.env[key];
-  }
-  return undefined;
-};
-
-const apiKey = getEnv('VITE_FIREBASE_API_KEY') || getEnv('EXPO_PUBLIC_FIREBASE_API_KEY');
-const authDomain = getEnv('VITE_FIREBASE_AUTH_DOMAIN') || getEnv('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN');
-const projectId = getEnv('VITE_FIREBASE_PROJECT_ID') || getEnv('EXPO_PUBLIC_FIREBASE_PROJECT_ID');
-const storageBucket = getEnv('VITE_FIREBASE_STORAGE_BUCKET') || getEnv('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET');
-const messagingSenderId = getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID') || getEnv('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID');
-const appId = getEnv('VITE_FIREBASE_APP_ID') || getEnv('EXPO_PUBLIC_FIREBASE_APP_ID');
+/**
+ * IMPORTANT (Expo/Metro requirement):
+ * Expo only inlines env vars into the JS bundle when accessed with the
+ * LITERAL key `process.env.EXPO_PUBLIC_XXX`. Dynamic access like
+ * `process.env[key]` returns undefined in the built APK.
+ */
+const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+const authDomain = process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN;
+const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+const storageBucket = process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
+const messagingSenderId = process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
+const appId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
 
 export const isFirebaseConfigured = Boolean(apiKey && projectId && authDomain);
 
-let app: any = null;
-let auth: any = null;
-let db: any = null;
-let storage: any = null;
+let app: ReturnType<typeof initializeApp> | null = null;
+let auth: FirebaseAuth.Auth | null = null;
+let db: ReturnType<typeof getFirestore> | null = null;
+let storage: ReturnType<typeof getStorage> | null = null;
 
 if (isFirebaseConfigured) {
   try {
@@ -39,13 +35,43 @@ if (isFirebaseConfigured) {
       messagingSenderId,
       appId,
     };
+
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    setPersistence(auth, browserLocalPersistence).catch(() => {});
     db = getFirestore(app);
     storage = getStorage(app);
+
+    // ---- Auth with platform-specific persistence ----
+    if (Platform.OS === 'web') {
+      // Web: use default persistence
+      auth = FirebaseAuth.getAuth(app);
+    } else {
+      // Native (Android/iOS): use AsyncStorage persistence so the
+      // login session survives app restarts.
+      const getRNPersistence: any = (FirebaseAuth as any).getReactNativePersistence;
+      if (getRNPersistence) {
+        try {
+          // Lazy require so this file doesn't hard-fail if the package
+          // isn't installed yet.
+          const AsyncStorage =
+            require('@react-native-async-storage/async-storage').default;
+          auth = FirebaseAuth.initializeAuth(app, {
+            persistence: getRNPersistence(AsyncStorage),
+          });
+        } catch (e) {
+          // initializeAuth throws if auth was already initialized
+          // (e.g. from a fast-refresh). Fall back to getAuth.
+          auth = FirebaseAuth.getAuth(app);
+        }
+      } else {
+        // Older/newer Firebase versions without getReactNativePersistence
+        auth = FirebaseAuth.getAuth(app);
+      }
+    }
   } catch (err) {
-    console.warn('[AI Studio] Firebase init failed, operating in mock data mode', err);
+    console.warn(
+      '[Harbor] Firebase init failed, operating in mock data mode',
+      err,
+    );
   }
 }
 

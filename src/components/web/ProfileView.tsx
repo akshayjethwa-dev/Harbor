@@ -120,7 +120,7 @@ export function ProfileView({ onSignOut }: ProfileViewProps) {
       <div className="mt-auto pt-10 text-center">
         <div className="inline-flex items-center gap-1.5 text-[11px] text-[#666]">
           <Sparkles className="w-3 h-3 text-[#FF6B35]" />
-          <span>GarbaCrew v1.0 • Navratri 2026 Edition</span>
+          <span>Harbor v1.0 • Navratri 2026 Edition</span>
         </div>
       </div>
     </div>

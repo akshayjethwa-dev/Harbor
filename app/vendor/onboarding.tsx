@@ -91,7 +91,7 @@ export default function VendorOnboardingScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.intro}>
-            List your services on GarbaCrew. We charge a{" "}
+            List your services on Harbor. We charge a{" "}
             <Text style={styles.bold}>15-20% commission</Text> per booking.
           </Text>
 

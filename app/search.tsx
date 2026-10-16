@@ -89,7 +89,7 @@ export default function SearchScreen() {
       ) : !searched ? (
         <View style={styles.center}>
           <Text style={styles.hintEmoji}>🔎</Text>
-          <Text style={styles.hintTitle}>Search GarbaCrew</Text>
+          <Text style={styles.hintTitle}>Search Harbor</Text>
           <Text style={styles.hintText}>
             Find Plans in your city, Squads to join, or people to connect with.
           </Text>

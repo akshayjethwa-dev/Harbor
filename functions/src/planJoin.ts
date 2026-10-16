@@ -193,7 +193,7 @@ export const joinPlan = onCall(async (request) => {
 
     await chatRef.collection("messages").add({
       fromUid: "system",
-      fromName: "GarbaCrew",
+      fromName: "Harbor",
       fromPhotoUrl: null,
       type: "system",
       text: `${(await userRef.get()).data()?.name ?? "Someone"} joined 👋`,
@@ -297,7 +297,7 @@ export const leavePlan = onCall(async (request) => {
 
     await chatRef.collection("messages").add({
       fromUid: "system",
-      fromName: "GarbaCrew",
+      fromName: "Harbor",
       fromPhotoUrl: null,
       type: "system",
       text: `${(await userRef.get()).data()?.name ?? "Someone"} left the Plan`,
@@ -399,7 +399,7 @@ export const approveJoinRequest = onCall(async (request) => {
   await chatRef.update({ participants: FieldValue.arrayUnion(requestUid) });
   await chatRef.collection("messages").add({
     fromUid: "system",
-    fromName: "GarbaCrew",
+    fromName: "Harbor",
     fromPhotoUrl: null,
     type: "system",
     text: `Request approved 👋`,

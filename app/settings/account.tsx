@@ -81,7 +81,7 @@ export default function AccountSettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Export your data</Text>
           <Text style={styles.cardText}>
-            Email us at privacy@garbacrew.app to receive a copy of your data.
+            Email us at privacy@Harbor.app to receive a copy of your data.
             We respond within 30 days.
           </Text>
         </View>

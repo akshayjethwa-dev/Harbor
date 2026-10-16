@@ -37,7 +37,7 @@ export function LoginView({ onContinue }: LoginViewProps) {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#FF6B35]/15 border border-[#FF6B35]/30 mb-4">
           <span className="text-3xl">🪔</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-[#FF6B35] tracking-tight">GarbaCrew</h1>
+        <h1 className="text-3xl font-extrabold text-[#FF6B35] tracking-tight">Harbor</h1>
         <p className="text-[#B0B0B0] text-sm mt-1">Gujarat's Navratri Crew & Dancers Network</p>
       </div>
 
@@ -99,7 +99,7 @@ export function LoginView({ onContinue }: LoginViewProps) {
       </div>
 
       <p className="text-xs text-[#666] text-center max-w-xs mx-auto">
-        By continuing, you agree to GarbaCrew's Terms of Service & Privacy Policy
+        By continuing, you agree to Harbor's Terms of Service & Privacy Policy
       </p>
     </div>
   );

@@ -13,11 +13,25 @@
         "buildType": "apk"
       },
       "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCkPp0ra6K0DGw40yyt_q9yo9YrWmmPGzg",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "garbacrew.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "garbacrew",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "garbacrew.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "490755900218",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:490755900218:web:0133ac0b275c92d3c6c603",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCkPp0ra6K0DGw40yyt_q9yo9YrWmmPGzg",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "garbacrew.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "garbacrew",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "garbacrew.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "490755900218",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:490755900218:web:0133ac0b275c92d3c6c603"
+      }
     }
   },
   "submit": {

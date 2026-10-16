@@ -32,7 +32,7 @@ export async function addPlanToCalendar(plan: Plan): Promise<boolean> {
 
     await Calendar.createEventAsync(writable.id, {
       title: plan.title,
-      notes: plan.description || `Hosted by ${plan.hostName} on GarbaCrew`,
+      notes: plan.description || `Hosted by ${plan.hostName} on Harbor`,
       startDate,
       endDate,
       location: `${plan.locationName}, ${plan.city}`,
