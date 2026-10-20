@@ -1,3 +1,43 @@
+// src/types/user.ts
+
+// ─── Availability types (Task 1) ───
+export type AvailabilityStatus = "free" | "busy" | "maybe";
+
+export type DayKey =
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat"
+  | "sun";
+
+export type TimeBlockKey = "morning" | "afternoon" | "evening" | "night";
+
+/**
+ * A time block's local-hour range.
+ * - `startHour` and `endHour` are integers 0–23 (24-hour clock).
+ * - If `startHour >= endHour`, the range wraps past midnight
+ *   (e.g. Night: startHour=21, endHour=6).
+ */
+export interface TimeBlockRange {
+  startHour: number;
+  endHour: number;
+}
+
+/** Per-user override of the default block ranges. */
+export type TimeBlockRanges = Partial<Record<TimeBlockKey, TimeBlockRange>>;
+
+/**
+ * Availability is stored as a flat map:
+ *   { "mon_morning": "free", "tue_evening": "busy", ... }
+ *
+ * Absence of a key = "unknown" (distinct from "busy").
+ */
+export type AvailabilityMap = Partial<
+  Record<`${DayKey}_${TimeBlockKey}`, AvailabilityStatus>
+>;
+
 export interface GarbaCrewUser {
   // ─── Identity (Epic 1) ───
   uid: string;
@@ -71,6 +111,29 @@ export interface GarbaCrewUser {
   // ─── Feature: Deletion ───
   isDeleted?: boolean;
   deletedAt?: Date;
+
+  // ─── Task 1: General Availability ───
+  /** Recurring weekly availability. Key = `${day}_${block}`. */
+  availability?: AvailabilityMap;
+  /** Per-user overrides for block time ranges (Morning/Afternoon/Evening/Night). */
+  timeBlockRanges?: TimeBlockRanges;
+  /** IANA timezone identifier at time of save (e.g. "Asia/Kolkata"). */
+  availabilityTimezone?: string;
+  /** UTC offset in minutes at time of save (for DST-aware display). */
+  availabilityUtcOffsetMinutes?: number;
+  /** ISO timestamp of last availability update. */
+  availabilityUpdatedAt?: Date;
+
+  upiId?: string; // e.g., user@okhdfcbank
+
+  presenceEnabled?: boolean;
+
+  reminderSettings?: {
+    taskReminders?: boolean;   // 24h / due date pushes
+    overdueDigest?: boolean;   // Daily organizer digest
+    dndStart?: number;         // 0-23 (e.g., 22 for 10 PM)
+    dndEnd?: number;           // 0-23 (e.g., 7 for 7 AM)
+  };
 }
 
 export interface ProfileSetupData {

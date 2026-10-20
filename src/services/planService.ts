@@ -13,6 +13,7 @@ import {
   startAfter,
   setDoc,
   QueryDocumentSnapshot,
+  updateDoc, // <-- Added for Task 34
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { Plan, PlanDraft, PlanJoinRequest } from "../types/plan";
@@ -144,7 +145,7 @@ export async function fetchPlans({
   hasMore: boolean;
 }> {
   const constraints: any[] = [
-    where("visibility", "==", "public"),
+    where("visibility", "==", "public"), // <-- This ensures only public plans show up
     where("status", "==", "open"),
     orderBy("startTime", "asc"),
   ];
@@ -220,4 +221,20 @@ export function checkRequirements(
 
 export function describeJoinRequest(req: PlanJoinRequest): string {
   return `${req.name} requested to join`;
+}
+
+// ─────────────────────────────────────────────────────────
+// Task 34: Update Visibility & Capacity
+// ─────────────────────────────────────────────────────────
+export async function updatePlanVisibilityAndCapacity(
+  planId: string,
+  visibility: "public" | "squad_only" | "private",
+  capacity: number
+): Promise<void> {
+  const planRef = doc(db, "plans", planId);
+  await updateDoc(planRef, {
+    visibility,
+    capacity,
+    updatedAt: serverTimestamp(),
+  });
 }

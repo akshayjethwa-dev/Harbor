@@ -28,6 +28,9 @@ export type PlanVisibility = "public" | "squad_only" | "private";
 
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
 
+// ─── Task 2: Date Polls ───
+export type PlanDateStatus = "pending" | "confirmed";
+
 // ─── Sub-objects ───
 export interface PlanRequirements {
   verifiedOnly: boolean;
@@ -129,6 +132,27 @@ export interface Plan {
 
   // ─── Feature: Completed ───
   completedAt?: Timestamp | any;
+
+  // ─── Task 2: Date Polls ───
+  /**
+   * "pending" while a date poll is open or no date has been confirmed.
+   * "confirmed" once the organizer locks in a slot (or the plan was
+   * created with a fixed date and never polled).
+   *
+   * Absent on legacy plans → treat as "confirmed" (they have a real
+   * startTime).
+   */
+  dateStatus?: PlanDateStatus;
+  /**
+   * Id of the currently-active date poll, or null/undefined when none.
+   * Cleared automatically by `confirmSlot`, `closePoll`, and the
+   * `expireStalePolls` Cloud Function.
+   */
+  pendingDatePollId?: string | null;
+
+  // ─── Task 36: No-Show Tracking ───
+  attendanceMarked?: boolean;
+  excusedUids?: string[];
 }
 
 // ─── Chat ───

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// app/settings/account.tsx
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,20 +10,73 @@ import {
   TextInput,
   Platform,
   ActivityIndicator,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { signOut } from "firebase/auth";
-import { auth } from "../../src/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { auth, db } from "../../src/lib/firebase";
 import app from "../../src/lib/firebase";
+import { useAuth } from "../../src/context/AuthContext";
 
 const functions = getFunctions(app, "asia-south1");
+const UPI_REGEX = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
 
 export default function AccountSettingsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  
+  // UPI State
+  const [upiId, setUpiId] = useState(user?.upiId || "");
+  const [savingUpi, setSavingUpi] = useState(false);
+
+  // Presence State (Task 24)
+  const [presenceEnabled, setPresenceEnabled] = useState(true);
+
+  useEffect(() => {
+    if (user?.upiId) setUpiId(user.upiId);
+    if (user) {
+      setPresenceEnabled(user.presenceEnabled !== false); // Defaults to true
+    }
+  }, [user?.upiId, user?.presenceEnabled]);
+
+  const handleSaveUpi = async () => {
+    if (!user?.uid) return;
+    const trimmed = upiId.trim();
+    
+    if (trimmed && !UPI_REGEX.test(trimmed)) {
+      return Alert.alert(
+        "Invalid UPI ID",
+        "Please enter a valid UPI ID (e.g. name@okhdfcbank)."
+      );
+    }
+
+    setSavingUpi(true);
+    try {
+      await updateDoc(doc(db, "users", user.uid), { upiId: trimmed });
+      Alert.alert("Saved", "Your UPI ID has been updated.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message ?? "Could not save UPI ID.");
+    } finally {
+      setSavingUpi(false);
+    }
+  };
+
+  const handleTogglePresence = async (val: boolean) => {
+    if (!user?.uid) return;
+    setPresenceEnabled(val);
+    try {
+      await updateDoc(doc(db, "users", user.uid), { presenceEnabled: val });
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+      setPresenceEnabled(!val); // revert on fail
+    }
+  };
 
   const performDelete = async () => {
     setDeleting(true);
@@ -76,7 +130,55 @@ export default function AccountSettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.sectionTitle}>Data & privacy</Text>
+        {/* ─── Payment Settings (Task 14) ─── */}
+        <Text style={styles.sectionTitle}>Payment Settings</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>UPI ID</Text>
+          <Text style={styles.cardText}>
+            Add your UPI ID so other plan members can easily settle balances with you using GPay, PhonePe, or Paytm.
+          </Text>
+
+          <TextInput
+            style={[styles.confirmInput, { marginTop: 12 }]}
+            placeholder="e.g. yourname@okhdfcbank"
+            placeholderTextColor="#999"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={upiId}
+            onChangeText={setUpiId}
+          />
+
+          <TouchableOpacity
+            style={[styles.saveUpiBtn, savingUpi && { opacity: 0.5 }]}
+            onPress={handleSaveUpi}
+            disabled={savingUpi}
+          >
+            {savingUpi ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.saveUpiText}>Save UPI ID</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* ─── Privacy Settings (Task 24) ─── */}
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Privacy</Text>
+
+        <View style={styles.card}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, paddingRight: 16 }}>
+              <Text style={styles.cardTitle}>Show Presence</Text>
+              <Text style={styles.cardText}>
+                Let others see when you are actively viewing a plan.
+              </Text>
+            </View>
+            <Switch value={presenceEnabled} onValueChange={handleTogglePresence} />
+          </View>
+        </View>
+
+        {/* ─── Data & Privacy ─── */}
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Data & privacy</Text>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Export your data</Text>
@@ -86,6 +188,7 @@ export default function AccountSettingsScreen() {
           </Text>
         </View>
 
+        {/* ─── Danger Zone ─── */}
         <View style={[styles.card, styles.dangerCard]}>
           <Text style={[styles.cardTitle, { color: "#FF3B30" }]}>
             Delete account
@@ -178,6 +281,14 @@ const styles = StyleSheet.create({
     color: "#333",
     backgroundColor: "#FFF",
   },
+  saveUpiBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    backgroundColor: "#E91E63",
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  saveUpiText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
   deleteBtn: {
     marginTop: 16,
     paddingVertical: 14,

@@ -1,3 +1,4 @@
+// src/services/notificationService.ts
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
@@ -28,6 +29,30 @@ if (!isWeb) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Notification kinds (used by Cloud Functions + routing below)
+// ─────────────────────────────────────────────────────────
+export type NotificationKind =
+  // ── Existing ──
+  | "plan_join_request"
+  | "plan_join_approved"
+  | "plan_join_declined"
+  | "plan_created"
+  | "plan_cancelled"
+  | "plan_reminder"
+  | "chat_message"
+  | "squad_invite"
+  | "squad_archived"
+  | "invitation"
+  | "sos"
+  | "report_resolved"
+  | "rating_prompt"
+  // ── Task 2: Date Polls ──
+  | "poll_created"
+  | "poll_closed"
+  | "poll_expired_no_votes"
+  | "poll_needs_new";
+
+// ─────────────────────────────────────────────────────────
 // Android notification channels
 // ─────────────────────────────────────────────────────────
 export async function setupNotificationChannels(): Promise<void> {
@@ -52,6 +77,13 @@ export async function setupNotificationChannels(): Promise<void> {
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 100],
   });
+  // ── Task 2: Polls ──
+  await Notifications.setNotificationChannelAsync("polls", {
+    name: "Date polls",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 150, 100, 150],
+    lightColor: "#E91E63",
+  });
 }
 
 // ─────────────────────────────────────────────────────────
@@ -61,7 +93,6 @@ export async function registerForPushNotifications(
   uid: string
 ): Promise<string | null> {
   // Web doesn't support Expo push tokens in this SDK version.
-  // Return null silently — the app continues to work.
   if (isWeb) return null;
 
   // Emulators can't receive FCM
@@ -137,7 +168,6 @@ export async function unregisterPushNotifications(
  * to the router. On web, returns a no-op cleanup function.
  */
 export function attachNotificationTapHandler(): () => void {
-  // Web has no native notification listener
   if (isWeb) {
     return () => {};
   }
@@ -161,7 +191,6 @@ export function attachNotificationTapHandler(): () => void {
         }
       })
       .catch((error) => {
-        // Not fatal — the notification listener above still works
         console.warn(
           "[Notifications] getLastNotificationResponseAsync failed:",
           error?.message ?? error
@@ -182,6 +211,9 @@ export function attachNotificationTapHandler(): () => void {
 
 /**
  * Maps notification `data` to an Expo Router route.
+ *
+ * Cloud Functions set the `type` field on the notification's `data`
+ * payload; this switch routes the user to the right screen.
  */
 function routeFromNotification(data: any): void {
   if (!data) return;
@@ -196,6 +228,11 @@ function routeFromNotification(data: any): void {
       case "plan_created":
       case "plan_cancelled":
       case "plan_reminder":
+      // ── Task 2: Date Polls — all route to the plan detail ──
+      case "poll_created":
+      case "poll_closed":
+      case "poll_expired_no_votes":
+      case "poll_needs_new":
         if (planId) router.push(`/plan/${planId}` as any);
         break;
 

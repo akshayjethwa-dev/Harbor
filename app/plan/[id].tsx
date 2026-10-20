@@ -26,6 +26,7 @@ import {
   declineJoinRequest,
 } from "../../src/services/planJoinService";
 import { Plan, PlanJoinRequest } from "../../src/types/plan";
+import { TimeBlockRanges } from "../../src/types/user";
 import { getActivityMeta } from "../../src/constants/activities";
 import { useAuth } from "../../src/context/AuthContext";
 import RequestCard from "../../src/components/plan/RequestCard";
@@ -35,6 +36,17 @@ import QRCodeModal from "../../src/components/plan/QRCodeModal";
 import CheckInButton from "../../src/components/plan/CheckInButton";
 import SaveAsTemplateButton from "../../src/components/plan/SaveAsTemplateButton";
 import { planShareUrl } from "../../src/services/shareService";
+// ─── Task 2 & 3: Date Polls & Heatmap ───
+import DatePollCard from "../../src/components/poll/DatePollCard";
+import { getUserProfile } from "../../src/services/userService";
+// ─── Task 24: Presence ───
+import PresenceBar from "../../src/components/plan/PresenceBar";
+import { usePresence } from "../../src/hooks/usePresence";
+// ─── Task 34: Edit Settings ───
+import EditPlanSettingsModal from "../../src/components/plan/EditPlanSettingsModal";
+// ─── Task 36: No-Show Tracking ───
+import MarkAttendanceModal from "../../src/components/plan/MarkAttendanceModal";
+import { disputeNoShow } from "../../src/services/attendanceService";
 
 function formatFullDate(ts: any): string {
   if (!ts) return "TBD";
@@ -61,6 +73,18 @@ export default function PlanDetailScreen() {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [showQR, setShowQR] = useState(false);
+  
+  // ─── Task 3: Heatmap state ───
+  const [organizerRanges, setOrganizerRanges] = useState<TimeBlockRanges | undefined>();
+
+  // ─── Task 24: Presence Hook ───
+  const { viewers } = usePresence(id);
+
+  // ─── Task 34: Settings Modal ───
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // ─── Task 36: Attendance Modal ───
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
 
   // Live subscription to plan
   useEffect(() => {
@@ -82,6 +106,18 @@ export default function PlanDetailScreen() {
     );
     return () => unsub();
   }, [id]);
+
+  // ─── Task 3: Fetch organizer's custom time block ranges ───
+  useEffect(() => {
+    if (!plan?.hostUid) return;
+    getUserProfile(plan.hostUid)
+      .then((profile) => {
+        if (profile?.timeBlockRanges) {
+          setOrganizerRanges(profile.timeBlockRanges);
+        }
+      })
+      .catch((err) => console.warn("Could not load organizer ranges:", err));
+  }, [plan?.hostUid]);
 
   useFocusEffect(useCallback(() => {}, []));
 
@@ -212,6 +248,30 @@ export default function PlanDetailScreen() {
     ]);
   };
 
+  // ─── Task 36: Dispute No-Show Handler ───
+  const handleDisputeNoShow = () => {
+    if (!plan || !user) return;
+    Alert.alert(
+      "Dispute No-Show",
+      "Are you sure you want to dispute this? The organizer will be notified to review your attendance.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Dispute",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await disputeNoShow(plan.id, user.uid);
+              Alert.alert("Dispute Sent", "The organizer will review your attendance.");
+            } catch (e: any) {
+              Alert.alert("Error", e.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -242,6 +302,24 @@ export default function PlanDetailScreen() {
       ? "Unlimited"
       : `${plan.spotsFilled} / ${plan.capacity}`;
   const isFull = plan.capacity > 0 && plan.spotsFilled >= plan.capacity;
+
+  // ─── Task 2: Date poll derived state ───
+  const isMemberOfPlan = role === "host" || role === "participant";
+  const canVoteInPoll = isMemberOfPlan;
+  const showPoll = !!plan.pendingDatePollId;
+  const canCreatePoll = role === "host" && !plan.pendingDatePollId;
+  const hasDateInProgress = !!plan.pendingDatePollId && plan.dateStatus !== "confirmed";
+
+  // ─── Task 31: Plan Recap derived state ───
+  const hasPlanEnded = plan?.endTime 
+    ? (plan.endTime.toMillis ? plan.endTime.toMillis() : new Date(plan.endTime).getTime()) < Date.now()
+    : false;
+
+  // ─── Task 36: Attendance derived state ───
+  const isHost = role === "host";
+  const showAttendanceBtn = isHost && hasPlanEnded && !plan.attendanceMarked;
+  const isMarkedNoShow = plan.noShowUids?.includes(user?.uid || "");
+  const showDisputeBtn = isMarkedNoShow && hasPlanEnded;
 
   let cta = "I'm In";
   const ctaDisabled = false;
@@ -299,16 +377,68 @@ export default function PlanDetailScreen() {
             </View>
           </View>
 
+          {/* Task 34: Edit Settings Button (Host only) */}
+          {role === "host" && (
+            <TouchableOpacity 
+              style={styles.editSettingsBtn} 
+              onPress={() => setShowSettingsModal(true)}
+            >
+              <Text style={styles.editSettingsText}>⚙️ Edit Plan Settings</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ─── Task 24: Presence Bar ─── */}
+          <PresenceBar viewers={viewers} />
+
+          {/* ─── Task 2 & 3: Date poll card (with heatmap integration) ─── */}
+          {showPoll && (
+            <DatePollCard
+              pollId={plan.pendingDatePollId!}
+              organizerId={plan.hostUid}
+              canVote={canVoteInPoll}
+              participantUids={plan.participants ?? []}
+              organizerRanges={organizerRanges}
+            />
+          )}
+
+          {/* ─── Task 2: Create-poll entry point (organizer only) ─── */}
+          {canCreatePoll && (
+            <TouchableOpacity
+              style={styles.pollCreateBtn}
+              onPress={() =>
+                router.push(
+                  `/poll/create?planId=${plan.id}&planHasDate=${!!plan.startTime}` as any
+                )
+              }
+              activeOpacity={0.85}
+            >
+              <Text style={styles.pollCreateIcon}>📅</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pollCreateTitle}>Create a date poll</Text>
+                <Text style={styles.pollCreateSub}>
+                  Propose 3–5 times and let members vote
+                </Text>
+              </View>
+              <Text style={styles.pollCreateChevron}>›</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Info rows */}
           <View style={styles.infoBox}>
             <View style={styles.infoRow}>
               <Text style={styles.infoIcon}>🕒</Text>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.infoLabel}>When</Text>
                 <Text style={styles.infoValue}>
                   {formatFullDate(plan.startTime)}
                 </Text>
-                <Text style={styles.infoSub}>{plan.durationMinutes} min</Text>
+                {hasDateInProgress ? (
+                  <Text style={styles.infoPending}>
+                    ⏳ Members are voting on alternate dates above
+                  </Text>
+                ) : (
+                  <Text style={styles.infoSub}>{plan.durationMinutes} min</Text>
+                )}
               </View>
             </View>
 
@@ -379,6 +509,124 @@ export default function PlanDetailScreen() {
 
           {/* Check-in (participants only) */}
           {showParticipantExtras && <CheckInButton plan={plan} />}
+
+          {/* ─── Task 36: Attendance UI ─── */}
+          {showAttendanceBtn && (
+            <TouchableOpacity
+              style={[styles.actionCardBtn, { backgroundColor: "#E3F2FD", borderColor: "#2196F3", marginTop: 8, marginBottom: 16 }]}
+              onPress={() => setShowAttendanceModal(true)}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 20 }}>📋</Text>
+                <Text style={[styles.actionCardText, { color: "#2196F3" }]}>Mark Attendance</Text>
+              </View>
+              <Text style={[styles.actionCardChevron, { color: "#2196F3" }]}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {showDisputeBtn && (
+            <TouchableOpacity
+              style={[styles.actionCardBtn, { backgroundColor: "#FFF5F5", borderColor: "#FF3B30", marginTop: 8, marginBottom: 16 }]}
+              onPress={handleDisputeNoShow}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 20 }}>⚠️</Text>
+                <Text style={[styles.actionCardText, { color: "#FF3B30" }]}>Dispute No-Show</Text>
+              </View>
+              <Text style={[styles.actionCardChevron, { color: "#FF3B30" }]}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ─── Task 6, 12, 19, 22, 23, 30, 31: Action Buttons ─── */}
+          {showParticipantExtras && (
+            <View style={{ marginBottom: 12 }}>
+              {/* Activity Feed */}
+              <TouchableOpacity
+                style={styles.actionCardBtn}
+                onPress={() => router.push(`/plan/activity/${plan.id}` as any)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 20 }}>📢</Text>
+                  <Text style={styles.actionCardText}>Activity Feed</Text>
+                </View>
+                <Text style={styles.actionCardChevron}>›</Text>
+              </TouchableOpacity>
+
+              {/* Tasks & To-dos */}
+              <TouchableOpacity
+                style={styles.actionCardBtn}
+                onPress={() => router.push(`/plan/tasks/${plan.id}` as any)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 20 }}>✅</Text>
+                  <Text style={styles.actionCardText}>Tasks & To-dos</Text>
+                </View>
+                <Text style={styles.actionCardChevron}>›</Text>
+              </TouchableOpacity>
+
+              {/* Expenses & Budget */}
+              <TouchableOpacity
+                style={styles.actionCardBtn}
+                onPress={() => router.push(`/plan/expenses/${plan.id}` as any)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 20 }}>🧾</Text>
+                  <Text style={styles.actionCardText}>Expenses & Budget</Text>
+                </View>
+                <Text style={styles.actionCardChevron}>›</Text>
+              </TouchableOpacity>
+
+              {/* Task 30: Album */}
+              <TouchableOpacity
+                style={styles.actionCardBtn}
+                onPress={() => router.push(`/plan/album/${plan.id}` as any)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 20 }}>📸</Text>
+                  <Text style={styles.actionCardText}>Photo Album</Text>
+                </View>
+                <Text style={styles.actionCardChevron}>›</Text>
+              </TouchableOpacity>
+
+              {/* Ideas & Suggestions */}
+              <TouchableOpacity
+                style={styles.actionCardBtn}
+                onPress={() => router.push(`/plan/ideas/${plan.id}` as any)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 20 }}>💡</Text>
+                  <Text style={styles.actionCardText}>Ideas & Suggestions</Text>
+                </View>
+                <Text style={styles.actionCardChevron}>›</Text>
+              </TouchableOpacity>
+
+              {/* Itinerary */}
+              <TouchableOpacity
+                style={styles.actionCardBtn}
+                onPress={() => router.push(`/plan/itinerary/${plan.id}` as any)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 20 }}>🗓️</Text>
+                  <Text style={styles.actionCardText}>Itinerary</Text>
+                </View>
+                <Text style={styles.actionCardChevron}>›</Text>
+              </TouchableOpacity>
+
+              {/* Task 31: Plan Recap */}
+              {hasPlanEnded && (
+                <TouchableOpacity
+                  style={[styles.actionCardBtn, { backgroundColor: "#FFF5F8", borderColor: "#E91E63" }]}
+                  onPress={() => router.push(`/plan/recap/${plan.id}` as any)}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Text style={{ fontSize: 20 }}>✨</Text>
+                    <Text style={[styles.actionCardText, { color: "#E91E63" }]}>View Plan Recap</Text>
+                  </View>
+                  <Text style={[styles.actionCardChevron, { color: "#E91E63" }]}>›</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* Add to calendar + Share */}
           {showParticipantExtras && (
@@ -543,6 +791,20 @@ export default function PlanDetailScreen() {
         label={plan.title}
         onClose={() => setShowQR(false)}
       />
+
+      {/* Task 34: Edit Settings Modal */}
+      <EditPlanSettingsModal
+        visible={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        plan={plan}
+      />
+
+      {/* Task 36: Mark Attendance Modal */}
+      <MarkAttendanceModal
+        visible={showAttendanceModal}
+        onClose={() => setShowAttendanceModal(false)}
+        plan={plan}
+      />
     </SafeAreaView>
   );
 }
@@ -604,6 +866,61 @@ const styles = StyleSheet.create({
   avatarInitial: { fontSize: 18, fontWeight: "700", color: "#999" },
   hostName: { fontSize: 15, fontWeight: "700", color: "#333" },
   hostMeta: { fontSize: 12, color: "#999", marginTop: 2 },
+
+  // Task 34: Edit Settings
+  editSettingsBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#F0F0F0",
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  editSettingsText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#666",
+  },
+
+  // ─── Task 2: Date poll create button ───
+  pollCreateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E91E63",
+    backgroundColor: "#FFF5F8",
+    marginBottom: 16,
+    gap: 12,
+  },
+  pollCreateIcon: { fontSize: 26 },
+  pollCreateTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#E91E63",
+  },
+  pollCreateSub: { fontSize: 12, color: "#999", marginTop: 2 },
+  pollCreateChevron: { fontSize: 22, color: "#E91E63", fontWeight: "700" },
+
+  // ─── Task 6, 12, 19, 22, 23, 30, 31: Action Card Buttons ───
+  actionCardBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: "#FAFAFA",
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  actionCardText: { fontSize: 15, fontWeight: "700", color: "#333" },
+  actionCardChevron: { fontSize: 18, color: "#999" },
+
   infoBox: {
     backgroundColor: "#FAFAFA",
     borderRadius: 14,
@@ -619,6 +936,12 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 12, color: "#999", fontWeight: "600" },
   infoValue: { fontSize: 15, color: "#333", fontWeight: "600", marginTop: 2 },
   infoSub: { fontSize: 12, color: "#999", marginTop: 2 },
+  infoPending: {
+    fontSize: 12,
+    color: "#E91E63",
+    marginTop: 2,
+    fontWeight: "600",
+  },
   reqBox: { marginBottom: 16 },
   reqTitle: { fontSize: 14, fontWeight: "700", color: "#333", marginBottom: 8 },
   reqRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

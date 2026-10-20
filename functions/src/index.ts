@@ -91,5 +91,32 @@ export {
   onPlanCreatedUpdateQuota,
 } from "./rateLimits";
 
+// ─── Task 2 & 4: Date Polls ───
+export { onPollCreated, onPollConfirmed, expireStalePolls } from "./polls";
+
 // ─── One-time backfill (comment out after running) ───
 export { backfillSearchFields } from "./backfill";
+
+// ─── Task 5: Nudges ───
+export { onNudgeRequested } from "./nudges";
+
+// ─── Task 7: Task Assignments ───
+export { onTaskAssigned, onTaskDeclined, onPlanMembersUpdated } from "./tasks";
+
+// ─── Task 10: Reminders ───
+export { sendTaskDueReminders, sendOverdueTaskDigests } from "./taskReminders";
+
+// ─── Task 13: Expense Balances ───
+export { onParticipantRemoved } from "./expenses";
+
+// ─── Task 17: UPI Collect ───
+export { expireCollectRequests } from "./collect";
+
+// ─── Task 18: Expense Disputes ───
+export { autoResolveDisputes, onDisputeResolved } from "./expenseDisputes";
+
+// ─── Task 20: Comments ───
+export { onCommentCreated } from "./comments";
+
+// ─── Task 36: Attendance & No-Shows ───
+export { onAttendanceMarked, autoMarkAttendance } from "./attendance";

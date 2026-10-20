@@ -305,6 +305,19 @@ export default function SquadDetailScreen() {
 
           {/* Actions */}
           <View style={styles.actionsSection}>
+            {/* Task 33: Year in Review Button */}
+            {myRole !== "visitor" && (
+              <TouchableOpacity
+                style={styles.recapBtn}
+                onPress={() => router.push(`/squad/recap/${squad.id}` as any)}
+              >
+                <Text style={styles.recapEmoji}>✨</Text>
+                <Text style={styles.recapText}>
+                  View {new Date().getFullYear()} Year in Review
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {myRole !== "visitor" && (
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionBtnPrimary]}
@@ -483,7 +496,24 @@ const styles = StyleSheet.create({
   smallBtnText: { fontSize: 11, color: "#E91E63", fontWeight: "700" },
   smallBtnDanger: { borderColor: "#FF3B30" },
   smallBtnDangerText: { fontSize: 11, color: "#FF3B30", fontWeight: "700" },
+  
   actionsSection: { marginTop: 32, gap: 12 },
+  
+  // Task 33: Year in Review Style
+  recapBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF3E0", // Light warm background
+    borderWidth: 1.5,
+    borderColor: "#FF9800",
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  recapEmoji: { fontSize: 20, marginRight: 8 },
+  recapText: { fontSize: 15, fontWeight: "800", color: "#E65100" },
+
   actionBtn: {
     paddingVertical: 14,
     borderRadius: 12,

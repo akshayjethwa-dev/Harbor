@@ -35,6 +35,9 @@ import Step6Approval from "../../src/components/plan-create/Step6Approval";
 import Step7Visibility from "../../src/components/plan-create/Step7Visibility";
 import Step8Review from "../../src/components/plan-create/Step8Review";
 
+// ─── Task 1: Availability prompt ───
+import AvailabilityPrompt from "../../src/components/plan-create/AvailabilityPrompt";
+
 export default function CreatePlanScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -46,6 +49,10 @@ export default function CreatePlanScreen() {
   const [saving, setSaving] = useState(false);
 
   const access = checkTrustAccess(user, "create_plan");
+
+  // ─── Task 1: has the user set any availability yet? ───
+  const hasAvailability =
+    !!user?.availability && Object.keys(user.availability).length > 0;
 
   // ─── Template loader ───
   const templateLoadedRef = useRef(false);
@@ -378,6 +385,9 @@ export default function CreatePlanScreen() {
           contentContainerStyle={{ paddingTop: 16 }}
           keyboardShouldPersistTaps="handled"
         >
+          {/* ─── Task 1: First-plan availability nudge ─── */}
+          <AvailabilityPrompt hasAvailability={hasAvailability} />
+
           {steps[currentStep]}
         </ScrollView>
 

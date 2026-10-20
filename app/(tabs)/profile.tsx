@@ -143,6 +143,15 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
+  // ─── Availability summary (Task 1) ───
+  const availabilityCount = user?.availability
+    ? Object.keys(user.availability).length
+    : 0;
+  const availabilitySub =
+    availabilityCount > 0
+      ? `${availabilityCount} slot${availabilityCount === 1 ? "" : "s"} set`
+      : "Set your weekly free/busy slots";
+
   const performSignOut = async () => {
     try {
       await signOut(auth);
@@ -269,6 +278,62 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
+
+        {/* ─── Availability (Task 1) ─── */}
+        <TouchableOpacity
+          style={styles.safetyLink}
+          onPress={() => router.push("/settings/availability" as any)}
+        >
+          <Text style={styles.safetyLinkIcon}>📅</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.safetyLinkTitle}>Availability</Text>
+            <Text style={styles.safetyLinkSub}>{availabilitySub}</Text>
+          </View>
+          <Text style={styles.safetyLinkChevron}>›</Text>
+        </TouchableOpacity>
+
+        {/* ─── Offline Itineraries (Task 29) ─── */}
+        <TouchableOpacity
+          style={styles.safetyLink}
+          onPress={() => router.push("/offline" as any)}
+        >
+          <Text style={styles.safetyLinkIcon}>📥</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.safetyLinkTitle}>Offline Itineraries</Text>
+            <Text style={styles.safetyLinkSub}>
+              Access plans without internet
+            </Text>
+          </View>
+          <Text style={styles.safetyLinkChevron}>›</Text>
+        </TouchableOpacity>
+
+        {/* ─── My Tasks ─── */}
+<TouchableOpacity
+  style={styles.safetyLink}
+  onPress={() => router.push("/my-tasks" as any)}
+>
+  <Text style={styles.safetyLinkIcon}>✅</Text>
+  <View style={{ flex: 1 }}>
+    <Text style={styles.safetyLinkTitle}>My Tasks</Text>
+    <Text style={styles.safetyLinkSub}>
+      Things assigned to you across all plans
+    </Text>
+  </View>
+  <Text style={styles.safetyLinkChevron}>›</Text>
+</TouchableOpacity>
+
+{/* ─── Notifications ─── */}
+<TouchableOpacity
+  style={styles.safetyLink}
+  onPress={() => router.push("/settings/notifications" as any)}
+>
+  <Text style={styles.safetyLinkIcon}>🔔</Text>
+  <View style={{ flex: 1 }}>
+    <Text style={styles.safetyLinkTitle}>Notifications</Text>
+    <Text style={styles.safetyLinkSub}>Reminders, digests, and Do Not Disturb</Text>
+  </View>
+  <Text style={styles.safetyLinkChevron}>›</Text>
+</TouchableOpacity>
 
         {/* ─── Invite friends ─── */}
         <TouchableOpacity
