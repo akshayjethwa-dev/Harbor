@@ -24,8 +24,13 @@ export const onAttendanceMarked = onDocumentUpdated("plans/{planId}", async (eve
   for (const uid of noShowUids) {
     const userRef = db.collection("users").doc(uid);
     const userSnap = await userRef.get();
-    if (!userSnap.exists()) continue;
+    
+    // FIX 1: exists is a property in Admin SDK, not a function
+    if (!userSnap.exists) continue;
+    
+    // FIX 2 & 3: Ensure data() is not undefined
     const user = userSnap.data();
+    if (!user) continue;
 
     const currentScore = user.guestScore ?? 50;
     const newNoShowCount = (user.noShowCount || 0) + 1;
@@ -52,7 +57,6 @@ export const onAttendanceMarked = onDocumentUpdated("plans/{planId}", async (eve
     if (isPaid) {
       logger.info(`Triggering refund for no-show user ${uid} on paid plan ${planId}`);
       // In a real app, you would call your payment provider here (e.g., Stripe/Razorpay refund)
-      // await stripe.refunds.create({ payment_intent: '...' });
     }
   }
 
@@ -68,7 +72,7 @@ export const autoMarkAttendance = onSchedule(
     yesterday.setDate(yesterday.getDate() - 1);
 
     const plansSnap = await db.collection("plans")
-      .where("status", "==", "open") // or "completed"
+      .where("status", "==", "open") 
       .where("attendanceMarked", "==", false)
       .where("endTime", "<=", admin.firestore.Timestamp.fromDate(yesterday))
       .get();

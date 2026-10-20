@@ -25,8 +25,8 @@ import {
   approveJoinRequest,
   declineJoinRequest,
 } from "../../src/services/planJoinService";
-import { Plan, PlanJoinRequest } from "../../src/types/plan";
-import { TimeBlockRanges } from "../../src/types/user";
+import { Plan, PlanJoinRequest, PlanParticipant } from "../../src/types/plan";
+import { TimeBlockRanges, GarbaCrewUser } from "../../src/types/user";
 import { getActivityMeta } from "../../src/constants/activities";
 import { useAuth } from "../../src/context/AuthContext";
 import RequestCard from "../../src/components/plan/RequestCard";
@@ -36,6 +36,7 @@ import QRCodeModal from "../../src/components/plan/QRCodeModal";
 import CheckInButton from "../../src/components/plan/CheckInButton";
 import SaveAsTemplateButton from "../../src/components/plan/SaveAsTemplateButton";
 import { planShareUrl } from "../../src/services/shareService";
+import { Ionicons } from "@expo/vector-icons";
 // ─── Task 2 & 3: Date Polls & Heatmap ───
 import DatePollCard from "../../src/components/poll/DatePollCard";
 import { getUserProfile } from "../../src/services/userService";
@@ -47,6 +48,8 @@ import EditPlanSettingsModal from "../../src/components/plan/EditPlanSettingsMod
 // ─── Task 36: No-Show Tracking ───
 import MarkAttendanceModal from "../../src/components/plan/MarkAttendanceModal";
 import { disputeNoShow } from "../../src/services/attendanceService";
+// ─── Task 37: Fake Profile Detection ───
+import ReportProfileModal from "../../src/components/profile/ReportProfileModal";
 
 function formatFullDate(ts: any): string {
   if (!ts) return "TBD";
@@ -85,6 +88,9 @@ export default function PlanDetailScreen() {
 
   // ─── Task 36: Attendance Modal ───
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+
+  // ─── Task 37: Report Profile Modal ───
+  const [reportTarget, setReportTarget] = useState<PlanParticipant | null>(null);
 
   // Live subscription to plan
   useEffect(() => {
@@ -680,7 +686,15 @@ export default function PlanDetailScreen() {
           ) : (
             <View style={styles.avatarRow}>
               {plan.participantDetails.slice(0, 6).map((p) => (
-                <View key={p.uid} style={styles.participantWrap}>
+                <TouchableOpacity 
+                  key={p.uid} 
+                  style={styles.participantWrap}
+                  onPress={() => {
+                    if (p.uid !== user?.uid) {
+                      setReportTarget(p);
+                    }
+                  }}
+                >
                   {p.photoUrl ? (
                     <Image
                       source={{ uri: p.photoUrl }}
@@ -693,7 +707,13 @@ export default function PlanDetailScreen() {
                       </Text>
                     </View>
                   )}
-                </View>
+                  {/* Small Report Flag for other participants */}
+                  {p.uid !== user?.uid && (
+                    <View style={styles.reportFlag}>
+                      <Ionicons name="flag" size={8} color="#FFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
               ))}
               {plan.participantDetails.length > 6 && (
                 <View style={[styles.participant, styles.moreBadge]}>
@@ -805,6 +825,20 @@ export default function PlanDetailScreen() {
         onClose={() => setShowAttendanceModal(false)}
         plan={plan}
       />
+
+      {/* Task 37: Report Profile Modal */}
+      {reportTarget && (
+        <ReportProfileModal
+          visible={!!reportTarget}
+          onClose={() => setReportTarget(null)}
+          targetUser={{
+            uid: reportTarget.uid,
+            name: reportTarget.name,
+            photoUrl: reportTarget.photoUrl,
+            // Pass minimal required fields since the modal only needs uid and name
+          } as GarbaCrewUser}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -988,8 +1022,23 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 24,
   },
-  participantWrap: {},
+  participantWrap: {
+    position: "relative",
+  },
   participant: { width: 44, height: 44, borderRadius: 22 },
+  reportFlag: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    backgroundColor: "#F44336",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+  },
   moreBadge: {
     backgroundColor: "#F0F0F0",
     justifyContent: "center",

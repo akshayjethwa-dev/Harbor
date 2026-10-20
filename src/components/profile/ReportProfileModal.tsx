@@ -90,7 +90,7 @@ export default function ReportProfileModal({ visible, onClose, targetUser }: Pro
                 style={styles.reasonItem}
                 onPress={() => setSelectedReason(r.value)}
               >
-                <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: selectedReason === r.value ? styles.submitBtn.backgroundColor : styles.header.closeBtn.color, alignItems: "center", justifyContent: "center" }}>
+                <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: selectedReason === r.value ? styles.submitBtn.backgroundColor : styles.closeBtn.color, alignItems: "center", justifyContent: "center" }}>
                   {selectedReason === r.value && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: styles.submitBtn.backgroundColor }} />}
                 </View>
                 <Text style={styles.reasonText}>{r.label}</Text>
@@ -100,7 +100,7 @@ export default function ReportProfileModal({ visible, onClose, targetUser }: Pro
             <TextInput
               style={styles.input}
               placeholder="Provide additional details (optional)..."
-              placeholderTextColor={styles.header.closeBtn.color}
+              placeholderTextColor={styles.closeBtn.color}
               multiline
               value={details}
               onChangeText={setDetails}

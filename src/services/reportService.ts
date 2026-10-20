@@ -5,11 +5,7 @@ import {
   addDoc, 
   doc, 
   updateDoc, 
-  getDocs, 
-  query, 
-  where, 
-  serverTimestamp,
-  increment 
+  serverTimestamp 
 } from "firebase/firestore";
 import { ProfileReport } from "../types/report";
 import { GarbaCrewUser } from "../types/user";
@@ -37,7 +33,7 @@ export async function reportProfile(
 
 /**
  * Admin action: Resolve a report.
- * If marked as false, apply a strike to the reporter.
+ * If marked as false, the Cloud Function will apply a strike to the reporter.
  */
 export async function resolveProfileReport(
   reportId: string,
@@ -51,6 +47,4 @@ export async function resolveProfileReport(
     isFalseReport,
     resolvedAt: serverTimestamp(),
   });
-
-  // If it's a false report, the Cloud Function will handle striking the reporter.
 }

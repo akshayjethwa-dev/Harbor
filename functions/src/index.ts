@@ -120,3 +120,6 @@ export { onCommentCreated } from "./comments";
 
 // ─── Task 36: Attendance & No-Shows ───
 export { onAttendanceMarked, autoMarkAttendance } from "./attendance";
+
+// ─── Task 37: Profile Reports ───
+export { onProfileReportCreated, onReportResolved } from "./profileReports";
