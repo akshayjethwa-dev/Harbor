@@ -45,8 +45,6 @@ export {
   onCreatePayoutForCompletedPlan,
   processPendingPayouts,
   createSubscriptionCheckout,
-  cancelSubscription,
-  processExpiredSubscriptions,
   createBoostCheckout,
   confirmBoostPayment,
 } from "./monetization";
@@ -123,3 +121,32 @@ export { onAttendanceMarked, autoMarkAttendance } from "./attendance";
 
 // ─── Task 37: Profile Reports ───
 export { onProfileReportCreated, onReportResolved } from "./profileReports";
+
+// ─── Task 38: Chat Harassment ───
+export { onChatReportCreated } from "./chatReports";
+
+// ─── Task 39: Emergency Contact Auto-Alert ───
+export { onSOSAlertCreated, autoAlertStaleSOS } from "./sosAlerts";
+
+// ─── Task 40: Subscription Management ───
+export { 
+  cancelSubscription, 
+  resumeSubscription, 
+  handlePaymentFailed, 
+  processExpiredSubscriptions 
+} from "./subscriptions";
+
+// ─── Task 42: Analytics ───
+export { aggregateAnalytics } from "./analytics";
+
+// ─── Task 45: Data Export ───
+export { exportUserData } from "./exportData";
+
+// ─── Task 47: Data Retention ───
+export { purgeDeletedAccounts, purgeOldChats } from "./dataRetention";
+
+// ─── Task 51: Badges ───
+export { awardBadges } from "./badges";
+
+// ─── Task 53: Plan Streaks ───
+export { evaluateWeeklyStreaks, notifyStreakAtRisk, useStreakFreeze } from "./streaks";

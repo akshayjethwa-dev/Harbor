@@ -41,7 +41,8 @@ import AvailabilityPrompt from "../../src/components/plan-create/AvailabilityPro
 export default function CreatePlanScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { templateId } = useLocalSearchParams<{ templateId?: string }>();
+  // Added `preset` to params
+  const { templateId, preset } = useLocalSearchParams<{ templateId?: string; preset?: string }>();
 
   const { currentStep, nextStep, prevStep, draft, reset, updateDraft } =
     usePlanCreateStore();
@@ -74,11 +75,41 @@ export default function CreatePlanScreen() {
     })();
   }, [templateId, updateDraft]);
 
+  // ─── Task 49: First Plan Preset ───
+  const presetLoadedRef = useRef(false);
+  useEffect(() => {
+    if (preset === "first_plan" && !presetLoadedRef.current && user) {
+      presetLoadedRef.current = true;
+      
+      // Reset the wizard first to clear any leftover state or draft restore prompts
+      reset();
+
+      // Pre-fill the draft with a simple, fast plan
+      updateDraft({
+        activity: "food",
+        title: "Chai & Snacks Meetup",
+        description: "A quick catch-up to break the ice!",
+        startDate: new Date(Date.now() + 86400000), // Tomorrow
+        startTime: "17:00",
+        durationMinutes: 120,
+        locationName: "Local Cafe",
+        city: user.city || "Mumbai",
+        capacity: 4,
+        costTotal: 0,
+        approvalMode: "auto",
+        visibility: "public",
+      });
+
+      // Jump to the final step (Review)
+      usePlanCreateStore.setState({ currentStep: TOTAL_PLAN_STEPS - 1 });
+    }
+  }, [preset, user, updateDraft, reset]);
+
   // ─── Draft restore ───
   const promptedRef = useRef(false);
   useEffect(() => {
     if (promptedRef.current) return;
-    if (templateId) return;
+    if (templateId || preset) return; // Don't prompt if using a template or preset
     if (!lastSavedAt) return;
     const hoursAgo = (Date.now() - lastSavedAt) / (1000 * 60 * 60);
     if (hoursAgo > 24) {
@@ -100,7 +131,7 @@ export default function CreatePlanScreen() {
         { text: "Restore", style: "default" },
       ]);
     }
-  }, [lastSavedAt, currentStep, draft.activity, reset, templateId]);
+  }, [lastSavedAt, currentStep, draft.activity, reset, templateId, preset]);
 
   // ─── Exit flow ───
   const performExit = useCallback(() => {

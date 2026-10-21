@@ -54,6 +54,11 @@ export interface Squad {
   updatedAt: Timestamp | any;
 
   plansGeneratedCount: number;
+  customBranding?: {
+    logoUrl?: string;
+    primaryColor?: string;
+    customUrl?: string;
+  };
 }
 
 export interface SquadDraft {
@@ -89,3 +94,21 @@ export const DAY_NAMES = [
   "Friday",
   "Saturday",
 ];
+
+export interface ActiveMemberStat {
+  uid: string;
+  name: string;
+  photoUrl: string | null;
+  planCount: number;
+}
+
+export interface SquadInsights {
+  totalPlans: number;
+  completedPlans: number;
+  cancelledPlans: number;
+  totalSpent: number;
+  perPersonSpend: number;
+  mostActiveMembers: ActiveMemberStat[];
+  attendanceRate: number; // percentage
+  currentMemberCount: number;
+}

@@ -54,6 +54,8 @@ export async function createPlan(
     hostPhotoUrl: host.photoUrl ?? null,
     hostScore: host.hostScore ?? 50,
     hostVerified: host.isVerified ?? false,
+    hostSubscriptionTier: host.subscriptionTier || "free", // Task 54
+    isHostTier: host.subscriptionTier === "host",
 
     activity: draft.activity,
     activityCustom: draft.activityCustom || "",
@@ -73,6 +75,7 @@ export async function createPlan(
     capacity: draft.capacity,
     costTotal: draft.costTotal,
     costPerPerson,
+    requiresWaiver: draft.requiresWaiver || false, 
 
     requirements: draft.requirements,
     approvalMode: draft.approvalMode,
@@ -147,6 +150,7 @@ export async function fetchPlans({
   const constraints: any[] = [
     where("visibility", "==", "public"), // <-- This ensures only public plans show up
     where("status", "==", "open"),
+    orderBy("isHostTier", "desc"),
     orderBy("startTime", "asc"),
   ];
 

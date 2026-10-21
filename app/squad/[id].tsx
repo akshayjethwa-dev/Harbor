@@ -1,3 +1,4 @@
+// app/squad/[id].tsx
 import React, { useCallback, useState } from "react";
 import {
   View,
@@ -83,6 +84,9 @@ export default function SquadDetailScreen() {
   const isAdmin = myRole === "admin";
   const isCoAdmin = myRole === "co_admin";
   const canManage = isAdmin || isCoAdmin;
+  
+  // Task 54: Host Tier Check
+  const isHostTier = user?.subscriptionTier === "host";
 
   const handlePromote = async (uid: string) => {
     try {
@@ -305,6 +309,53 @@ export default function SquadDetailScreen() {
 
           {/* Actions */}
           <View style={styles.actionsSection}>
+            
+            {/* Task 54 & 55: Host Tools */}
+            {isAdmin && isHostTier && (
+              <View style={{ marginTop: 8, marginBottom: 16, padding: 16, backgroundColor: "#FFF8E1", borderRadius: 12, borderWidth: 1, borderColor: "#FFC107" }}>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: "#FF9800", marginBottom: 12 }}>👑 Host Tier Tools</Text>
+                
+                <TouchableOpacity style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#FFC10733" }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: "#333" }}>🎨 Custom Squad Branding</Text>
+                  <Text style={{ fontSize: 12, color: "#666" }}>Logo, colors, custom URL</Text>
+                </TouchableOpacity>
+
+                {/* Task 55: Revenue Dashboard Navigation */}
+                <TouchableOpacity 
+                  style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#FFC10733" }}
+                  onPress={() => router.push("/host/revenue" as any)}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: "#333" }}>📊 Revenue Dashboard</Text>
+                  <Text style={{ fontSize: 12, color: "#666" }}>Track paid plan earnings</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={{ paddingVertical: 12 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: "#333" }}>📁 Bulk CSV Import</Text>
+                  <Text style={{ fontSize: 12, color: "#666" }}>Invite members in bulk</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Task 52: Leaderboard */}
+            {myRole !== "visitor" && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#FFF8E1", borderColor: "#FFC107" }]}
+                onPress={() => router.push(`/squad/leaderboard/${squad.id}` as any)}
+              >
+                <Text style={{ color: "#FF9800", fontWeight: "700", fontSize: 14 }}>🏆 View Leaderboard</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Task 43: Squad Insights */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#E3F2FD", borderColor: "#2196F3" }]}
+                onPress={() => router.push(`/squad/insights/${squad.id}` as any)}
+              >
+                <Text style={{ color: "#2196F3", fontWeight: "700", fontSize: 14 }}>📊 View Squad Insights</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Task 33: Year in Review Button */}
             {myRole !== "visitor" && (
               <TouchableOpacity
@@ -499,12 +550,22 @@ const styles = StyleSheet.create({
   
   actionsSection: { marginTop: 32, gap: 12 },
   
-  // Task 33: Year in Review Style
+  insightsBtn: {
+    backgroundColor: "#E3F2FD",
+    borderWidth: 1.5,
+    borderColor: "#2196F3",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  insightsText: { fontSize: 15, fontWeight: "800", color: "#2196F3" },
+
   recapBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFF3E0", // Light warm background
+    backgroundColor: "#FFF3E0",
     borderWidth: 1.5,
     borderColor: "#FF9800",
     paddingVertical: 16,

@@ -6,7 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../theme/ThemeContext";
 import { useThemedStyles } from "../../hooks/useThemedStyles";
 import { ThemeColors } from "../../theme/colors";
-import ReactionBar from "./ReactionBar"; // <-- Added
+import ReactionBar from "./ReactionBar";
 
 interface Props {
   task: PlanTask;
@@ -19,10 +19,13 @@ interface Props {
   onComplete?: () => void;
   onReopen?: () => void;
   onComment?: () => void;
+  // Task 41: Accessibility Fallbacks for Drag & Drop
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   isArchived: boolean;
   isParticipant?: boolean;
   isOrganizer?: boolean;
-  planId?: string; // <-- Added for Reactions
+  planId?: string;
 }
 
 const makeStyles = (c: ThemeColors) =>
@@ -36,18 +39,17 @@ const makeStyles = (c: ThemeColors) =>
     cardActive: { borderColor: c.primary, transform: [{ scale: 1.02 }], shadowOpacity: 0.1, elevation: 4 },
     cardCompleted: { opacity: 0.8, backgroundColor: c.bgSubtle },
     
-    // Checkbox
     checkbox: {
-      width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.textMuted,
+      width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: c.textMuted,
       alignItems: "center", justifyContent: "center", marginRight: 12,
     },
     checkboxCompleted: { backgroundColor: c.success, borderColor: c.success },
-    checkIcon: { color: "#FFF", fontSize: 14, fontWeight: "bold" },
+    checkIcon: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
 
     priorityStrip: { width: 4, height: "100%", borderRadius: 2, marginRight: 12 },
     content: { flex: 1 },
     titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-    title: { fontSize: 15, fontWeight: "700", color: c.text },
+    title: { fontSize: 16, fontWeight: "700", color: c.text },
     titleCompleted: { textDecorationLine: "line-through", color: c.textMuted },
     category: {
       fontSize: 10, fontWeight: "700", color: c.textMuted,
@@ -57,14 +59,13 @@ const makeStyles = (c: ThemeColors) =>
     desc: { fontSize: 13, color: c.textSecondary, marginBottom: 8 },
     footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     assignee: { flexDirection: "row", alignItems: "center", gap: 6 },
-    avatar: { width: 20, height: 20, borderRadius: 10 },
-    avatarFallback: { width: 20, height: 20, borderRadius: 10, backgroundColor: c.bgSubtle, alignItems: "center", justifyContent: "center" },
-    avatarInitial: { fontSize: 10, color: c.textMuted, fontWeight: "700" },
+    avatar: { width: 24, height: 24, borderRadius: 12 },
+    avatarFallback: { width: 24, height: 24, borderRadius: 12, backgroundColor: c.bgSubtle, alignItems: "center", justifyContent: "center" },
+    avatarInitial: { fontSize: 11, color: c.textMuted, fontWeight: "700" },
     assigneeText: { fontSize: 12, color: c.textSecondary, fontWeight: "600" },
     dueDate: { fontSize: 12, color: c.textSecondary },
     overdue: { color: c.danger, fontWeight: "700" },
     
-    // Completed Details
     completedBox: {
       marginTop: 8, backgroundColor: c.success + "11", padding: 8, borderRadius: 6,
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -80,20 +81,25 @@ const makeStyles = (c: ThemeColors) =>
     archived: { opacity: 0.6 },
     actionRow: { flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" },
     actionBtn: {
-      paddingVertical: 6, paddingHorizontal: 10,
-      backgroundColor: c.bgSubtle, borderRadius: 6,
+      paddingVertical: 8, paddingHorizontal: 12,
+      backgroundColor: c.bgSubtle, borderRadius: 8,
       borderWidth: 1, borderColor: c.border,
     },
     actionBtnPrimary: { backgroundColor: c.primary + "11", borderColor: c.primary + "33" },
     actionBtnWarning: { borderColor: c.warning },
-    actionText: { fontSize: 11, fontWeight: "700", color: c.textSecondary },
+    actionText: { fontSize: 12, fontWeight: "700", color: c.textSecondary },
     actionTextPrimary: { color: c.primary },
     actionTextWarning: { color: c.warning },
     actionTextDanger: { color: c.danger },
+    
+    // Task 41: Accessibility Reorder Buttons
+    a11yReorderCol: { gap: 4, marginLeft: 8 },
+    a11yReorderBtn: { padding: 8, backgroundColor: c.bgSubtle, borderRadius: 6, borderWidth: 1, borderColor: c.border },
+    a11yReorderText: { fontSize: 14, color: c.textSecondary, fontWeight: "bold" },
   });
 
 export default function TaskCard({
-  task, isActive, onLongPress, onPress, onDecline, onClaim, onUnclaim, onComplete, onReopen, onComment, isArchived, isParticipant = false, isOrganizer = false, planId
+  task, isActive, onLongPress, onPress, onDecline, onClaim, onUnclaim, onComplete, onReopen, onComment, onMoveUp, onMoveDown, isArchived, isParticipant = false, isOrganizer = false, planId
 }: Props) {
   const { user } = useAuth();
   const styles = useThemedStyles(makeStyles);
@@ -115,6 +121,8 @@ export default function TaskCard({
       onPress={isArchived ? undefined : onPress}
       activeOpacity={0.8}
       disabled={isArchived}
+      accessible={true}
+      accessibilityLabel={`Task: ${task.title}. Assigned to ${task.assigneeName || "no one"}. Priority: ${task.priority}. ${task.isCompleted ? "Completed." : "Incomplete."}`}
     >
       {!isArchived && (
         <TouchableOpacity 
@@ -124,6 +132,9 @@ export default function TaskCard({
             if (onComplete) onComplete();
           }}
           disabled={task.isCompleted}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: task.isCompleted }}
+          accessibilityLabel="Mark task as complete"
         >
           {task.isCompleted && <Text style={styles.checkIcon}>✓</Text>}
         </TouchableOpacity>
@@ -168,18 +179,18 @@ export default function TaskCard({
         {!isArchived && (
           <View style={styles.actionRow}>
             {!task.isCompleted && !task.assigneeUid && isParticipant && onClaim && (
-              <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={onClaim}>
+              <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={onClaim} accessibilityRole="button" accessibilityLabel="Claim this task">
                 <Text style={[styles.actionText, styles.actionTextPrimary]}>Claim</Text>
               </TouchableOpacity>
             )}
 
             {!task.isCompleted && isAssignee && (
               isWithin5Mins && onUnclaim ? (
-                <TouchableOpacity style={styles.actionBtn} onPress={onUnclaim}>
+                <TouchableOpacity style={styles.actionBtn} onPress={onUnclaim} accessibilityRole="button" accessibilityLabel="Unclaim task">
                   <Text style={[styles.actionText, styles.actionTextDanger]}>Unclaim (5m)</Text>
                 </TouchableOpacity>
               ) : onDecline ? (
-                <TouchableOpacity style={styles.actionBtn} onPress={onDecline}>
+                <TouchableOpacity style={styles.actionBtn} onPress={onDecline} accessibilityRole="button" accessibilityLabel="Decline task">
                   <Text style={[styles.actionText, styles.actionTextDanger]}>Decline</Text>
                 </TouchableOpacity>
               ) : null
@@ -187,18 +198,18 @@ export default function TaskCard({
 
             {task.isCompleted && onReopen && (
               isWithin30Secs ? (
-                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnWarning]} onPress={onReopen}>
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnWarning]} onPress={onReopen} accessibilityRole="button" accessibilityLabel="Undo completion">
                   <Text style={[styles.actionText, styles.actionTextWarning]}>Undo (30s)</Text>
                 </TouchableOpacity>
               ) : isOrganizer ? (
-                <TouchableOpacity style={styles.actionBtn} onPress={onReopen}>
+                <TouchableOpacity style={styles.actionBtn} onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen task">
                   <Text style={styles.actionText}>Reopen Task</Text>
                 </TouchableOpacity>
               ) : null
             )}
 
             {onComment && (
-              <TouchableOpacity style={styles.actionBtn} onPress={onComment}>
+              <TouchableOpacity style={styles.actionBtn} onPress={onComment} accessibilityRole="button" accessibilityLabel="View or add comments">
                 <Text style={styles.actionText}>💬 Comment</Text>
               </TouchableOpacity>
             )}
@@ -217,8 +228,35 @@ export default function TaskCard({
         )}
       </View>
 
+      {/* Task 41: Accessibility Fallback for Drag & Drop */}
+      {!isArchived && !task.isCompleted && (onMoveUp || onMoveDown) && (
+        <View style={styles.a11yReorderCol}>
+          {onMoveUp && (
+            <TouchableOpacity 
+              style={styles.a11yReorderBtn} 
+              onPress={onMoveUp}
+              accessibilityRole="button"
+              accessibilityLabel="Move task up"
+            >
+              <Text style={styles.a11yReorderText}>↑</Text>
+            </TouchableOpacity>
+          )}
+          {onMoveDown && (
+            <TouchableOpacity 
+              style={styles.a11yReorderBtn} 
+              onPress={onMoveDown}
+              accessibilityRole="button"
+              accessibilityLabel="Move task down"
+            >
+              <Text style={styles.a11yReorderText}>↓</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Visual Drag Handle (Hidden from Screen Readers) */}
       {!isArchived && !task.isCompleted && (
-        <View style={styles.dragHandle}>
+        <View style={styles.dragHandle} accessibilityElementsHidden={true} importantForAccessibility="no-hide-descendants">
           <Text style={styles.dragHandleText}>≡</Text>
         </View>
       )}

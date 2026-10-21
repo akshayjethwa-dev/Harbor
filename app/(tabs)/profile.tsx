@@ -19,11 +19,11 @@ import PartnerModeToggle from "../../src/components/partner/PartnerModeToggle";
 import { useTheme } from "../../src/theme/ThemeContext";
 import { useThemedStyles } from "../../src/hooks/useThemedStyles";
 import { ThemeColors } from "../../src/theme/colors";
+// ─── Task 51: Badges ───
+import BadgeGrid from "../../src/components/profile/BadgeGrid";
+// ─── Task 53: Streaks ───
+import StreakCard from "../../src/components/profile/StreakCard";
 
-// ─────────────────────────────────────────────────────────
-// Styles factory — receives the current theme's colors
-// and returns a StyleSheet. Recomputed on every theme change.
-// ─────────────────────────────────────────────────────────
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
@@ -143,7 +143,6 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  // ─── Availability summary (Task 1) ───
   const availabilityCount = user?.availability
     ? Object.keys(user.availability).length
     : 0;
@@ -233,6 +232,12 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* ─── Task 53: Streaks ─── */}
+        <StreakCard />
+
+        {/* ─── Task 51: Badges ─── */}
+        <BadgeGrid badges={user.badges || []} />
+
         {/* ─── Scores ─── */}
         <View style={styles.scoresRow}>
           <View style={styles.scoreCard}>
@@ -307,34 +312,6 @@ export default function ProfileScreen() {
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── My Tasks ─── */}
-<TouchableOpacity
-  style={styles.safetyLink}
-  onPress={() => router.push("/my-tasks" as any)}
->
-  <Text style={styles.safetyLinkIcon}>✅</Text>
-  <View style={{ flex: 1 }}>
-    <Text style={styles.safetyLinkTitle}>My Tasks</Text>
-    <Text style={styles.safetyLinkSub}>
-      Things assigned to you across all plans
-    </Text>
-  </View>
-  <Text style={styles.safetyLinkChevron}>›</Text>
-</TouchableOpacity>
-
-{/* ─── Notifications ─── */}
-<TouchableOpacity
-  style={styles.safetyLink}
-  onPress={() => router.push("/settings/notifications" as any)}
->
-  <Text style={styles.safetyLinkIcon}>🔔</Text>
-  <View style={{ flex: 1 }}>
-    <Text style={styles.safetyLinkTitle}>Notifications</Text>
-    <Text style={styles.safetyLinkSub}>Reminders, digests, and Do Not Disturb</Text>
-  </View>
-  <Text style={styles.safetyLinkChevron}>›</Text>
-</TouchableOpacity>
-
         {/* ─── Invite friends ─── */}
         <TouchableOpacity
           style={styles.safetyLink}
@@ -361,6 +338,19 @@ export default function ProfileScreen() {
             <Text style={styles.safetyLinkSub}>
               Emergency contacts, blocked users, disputes
             </Text>
+          </View>
+          <Text style={styles.safetyLinkChevron}>›</Text>
+        </TouchableOpacity>
+
+        {/* ─── Task 48: How to use Harbor ─── */}
+        <TouchableOpacity
+          style={styles.safetyLink}
+          onPress={() => router.push("/onboarding" as any)}
+        >
+          <Text style={styles.safetyLinkIcon}>🎓</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.safetyLinkTitle}>How to use Harbor</Text>
+            <Text style={styles.safetyLinkSub}>Replay the guided tour</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>

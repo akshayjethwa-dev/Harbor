@@ -82,6 +82,20 @@ export default function PlanTasksScreen() {
     if (id) reorderTasks(id, merged).catch((e) => console.warn("Reorder failed:", e));
   }, [id, completedTasks]);
 
+  // ─── Task 41: Accessibility Move Logic ───
+  const moveItem = (index: number, direction: -1 | 1) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= activeTasks.length) return;
+    
+    const newData = [...activeTasks];
+    const temp = newData[index];
+    newData[index] = newData[newIndex];
+    newData[newIndex] = temp;
+    
+    setAllTasks([...newData, ...completedTasks]);
+    if (id) reorderTasks(id, [...newData, ...completedTasks]);
+  };
+
   const handleSaveTask = async (taskData: any) => {
     if (!id) return;
     if (editingTask) {
@@ -161,7 +175,9 @@ export default function PlanTasksScreen() {
     Alert.alert("Success", `Applied ${template.tasks.length} tasks!`);
   };
 
-  const renderItem = ({ item, drag, isActive }: RenderItemParams<PlanTask>) => {
+  const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<PlanTask>) => {
+    const index = getIndex() ?? -1;
+    
     return (
       <TouchableOpacity
         onLongPress={isOrganizer && !isCancelled ? () => handleDelete(item) : undefined}
@@ -186,7 +202,10 @@ export default function PlanTasksScreen() {
           onComplete={() => handleComplete(item)}
           onReopen={() => handleReopen(item)}
           onComment={() => setActiveCommentTask(item)}
-          planId={id} // <-- Added
+          planId={id}
+          // Task 41: Pass accessibility move handlers
+          onMoveUp={index > 0 ? () => moveItem(index, -1) : undefined}
+          onMoveDown={index < activeTasks.length - 1 ? () => moveItem(index, 1) : undefined}
         />
       </TouchableOpacity>
     );
@@ -253,7 +272,7 @@ export default function PlanTasksScreen() {
                       isOrganizer={isOrganizer}
                       onReopen={() => handleReopen(task)}
                       onComment={() => setActiveCommentTask(task)}
-                      planId={id} // <-- Added
+                      planId={id}
                     />
                   ))}
                   {completedTasks.length === 0 && (

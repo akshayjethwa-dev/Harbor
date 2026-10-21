@@ -20,6 +20,9 @@ import { Plan } from "../../src/types/plan";
 import PlanCard from "../../src/components/plan/PlanCard";
 import FilterChips from "../../src/components/plan/FilterChips";
 import NotificationPermissionBanner from "../../src/components/common/NotificationPermissionBanner";
+// ─── Task 49: First Plan Prompt ───
+import FirstPlanPrompt from "../../src/components/onboarding/FirstPlanPrompt";
+
 import { usePlanQuota } from "../../src/hooks/usePlanQuota";
 import { useTheme } from "../../src/theme/ThemeContext";
 import { useThemedStyles } from "../../src/hooks/useThemedStyles";
@@ -118,7 +121,6 @@ const makeStyles = (c: ThemeColors) =>
 
 // Helper — pick a background that works in both themes
 function isDarkBanner(c: ThemeColors): string {
-  // If we're in dark mode (bg is dark), use a darker warning background
   return c.bg === "#0F0F0F" ? "#3A2A0F" : "#FFF8E1";
 }
 
@@ -251,6 +253,9 @@ export default function CrewsScreen() {
           </Text>
         </View>
       )}
+
+      {/* Task 49: First Plan Prompt */}
+      <FirstPlanPrompt />
 
       <NotificationPermissionBanner />
 

@@ -1,3 +1,4 @@
+// src/services/safetyService.ts
 import {
   collection,
   doc,
@@ -12,8 +13,10 @@ import {
   limit,
   serverTimestamp,
   Timestamp,
+  writeBatch, // <-- Added for bulk save
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as Location from "expo-location"; 
 import { db, storage } from "../lib/firebase";
 import { GarbaCrewUser } from "../types/user";
 import {
@@ -32,6 +35,32 @@ import {
 } from "../types/safety";
 
 // ─────────────────────────────────────────────────────────
+// Task 39: Location Helper with Fallback
+// ─────────────────────────────────────────────────────────
+export async function getSOSLocation(): Promise<{ lat: number | null, lng: number | null, acc: number | null, isLastKnown: boolean }> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") throw new Error("Permission denied");
+
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+    });
+    return { lat: loc.coords.latitude, lng: loc.coords.longitude, acc: loc.coords.accuracy ?? null, isLastKnown: false };
+  } catch (e) {
+    console.warn("Could not get current location, trying last known...", e);
+    try {
+      const lastLoc = await Location.getLastKnownPositionAsync();
+      if (lastLoc) {
+        return { lat: lastLoc.coords.latitude, lng: lastLoc.coords.longitude, acc: lastLoc.coords.accuracy ?? null, isLastKnown: true };
+      }
+    } catch (fallbackErr) {
+      console.warn("No last known location available.");
+    }
+    return { lat: null, lng: null, acc: null, isLastKnown: true };
+  }
+}
+
+// ─────────────────────────────────────────────────────────
 // SOS
 // ─────────────────────────────────────────────────────────
 export async function triggerSOS({
@@ -39,6 +68,7 @@ export async function triggerSOS({
   latitude,
   longitude,
   accuracy,
+  isLastKnownLocation,
   chatId,
   planId,
   squadId,
@@ -48,6 +78,7 @@ export async function triggerSOS({
   latitude: number | null;
   longitude: number | null;
   accuracy: number | null;
+  isLastKnownLocation: boolean; 
   chatId?: string;
   planId?: string;
   squadId?: string;
@@ -73,10 +104,12 @@ export async function triggerSOS({
     latitude,
     longitude,
     locationAccuracy: accuracy,
+    isLastKnownLocation, 
     status: "active",
     message: message ?? "",
     respondedBy: [],
     emergencyContactsNotified: contactPhones,
+    autoAlertSent: false, 
     createdAt: serverTimestamp(),
     expiresAt,
   });
@@ -222,6 +255,36 @@ export async function removeEmergencyContact(
   await deleteDoc(doc(db, "users", uid, "emergencyContacts", contactId));
 }
 
+/**
+ * Task 39: Bulk save emergency contacts (replaces existing)
+ */
+export async function saveEmergencyContacts(
+  uid: string,
+  contacts: EmergencyContact[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  const colRef = collection(db, "users", uid, "emergencyContacts");
+  
+  // 1. Delete existing contacts
+  const existingSnap = await getDocs(query(colRef));
+  existingSnap.forEach((docSnap) => {
+    batch.delete(docSnap.ref);
+  });
+
+  // 2. Add the new contacts
+  contacts.forEach((c) => {
+    const newRef = doc(colRef, c.id);
+    batch.set(newRef, {
+      name: c.name.trim(),
+      phone: c.phone.trim(),
+      relationship: c.relationship?.trim() ?? "",
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+}
+
 // ─────────────────────────────────────────────────────────
 // Block User
 // ─────────────────────────────────────────────────────────
@@ -285,9 +348,8 @@ export async function submitReport({
   targetOwnerUid?: string;
   reason: ReportReason;
   details: string;
-  evidenceFiles?: string[]; // local URIs
+  evidenceFiles?: string[]; 
 }): Promise<string> {
-  // Upload evidence
   const evidenceUrls: string[] = [];
   if (evidenceFiles && evidenceFiles.length > 0) {
     for (let i = 0; i < evidenceFiles.length; i++) {

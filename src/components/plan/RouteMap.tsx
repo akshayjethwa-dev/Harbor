@@ -20,8 +20,6 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: "800", color: c.text, marginBottom: 8 },
   emptyText: { fontSize: 14, color: c.textSecondary, textAlign: "center" },
-  
-  // Warnings
   warningBanner: {
     position: "absolute", top: 16, left: 16, right: 16,
     backgroundColor: c.warning, padding: 12, borderRadius: 10,
@@ -29,8 +27,6 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, elevation: 4,
   },
   warningText: { color: "#FFF", fontSize: 12, fontWeight: "700", flex: 1 },
-
-  // Custom Pin Styles
   pin: {
     backgroundColor: c.primary, width: 32, height: 32, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
@@ -38,8 +34,6 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, elevation: 4,
   },
   pinText: { color: "#FFF", fontSize: 14, fontWeight: "800" },
-  
-  // Bottom Info Card
   infoCard: {
     position: "absolute", bottom: 24, left: 16, right: 16,
     backgroundColor: c.bgElevated, padding: 16, borderRadius: 16,
@@ -68,13 +62,11 @@ export default function RouteMap({ items, onSelectItem }: Props) {
     );
   }
 
-  // Calculate route data
   const coordinates = stops.map((s) => ({
     latitude: s.latitude!,
     longitude: s.longitude!,
   }));
 
-  // Check edge cases
   let totalDistance = 0;
   for (let i = 0; i < coordinates.length - 1; i++) {
     totalDistance += calculateDistance(
@@ -83,10 +75,9 @@ export default function RouteMap({ items, onSelectItem }: Props) {
     );
   }
 
-  const isLongDistance = totalDistance > 50; // Across cities
+  const isLongDistance = totalDistance > 50;
   const isTooManyStops = stops.length > 10;
 
-  // Initial map region (centers on first stop)
   const initialRegion = {
     latitude: coordinates[0].latitude,
     longitude: coordinates[0].longitude,
@@ -101,17 +92,15 @@ export default function RouteMap({ items, onSelectItem }: Props) {
         initialRegion={initialRegion}
         // provider={PROVIDER_GOOGLE} // Uncomment if using a dev build with Google Maps on iOS
       >
-        {/* Polyline connecting stops */}
         {coordinates.length > 1 && (
           <Polyline
             coordinates={coordinates}
             strokeColor={colors.primary}
             strokeWidth={4}
-            lineDashPattern={[5, 5]} // Dashed line to indicate straight-line estimation
+            lineDashPattern={[5, 5]}
           />
         )}
 
-        {/* Numbered Pins */}
         {stops.map((stop, index) => (
           <Marker
             key={stop.id}
@@ -125,7 +114,6 @@ export default function RouteMap({ items, onSelectItem }: Props) {
         ))}
       </MapView>
 
-      {/* Edge Case Warnings */}
       {(isLongDistance || isTooManyStops) && (
         <View style={styles.warningBanner}>
           <Text style={{ fontSize: 18 }}>⚠️</Text>

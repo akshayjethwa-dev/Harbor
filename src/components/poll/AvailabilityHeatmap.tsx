@@ -105,6 +105,14 @@ const makeStyles = (c: ThemeColors) =>
     closeText: { fontSize: 20, color: c.textMuted },
     scroll: { paddingHorizontal: 20 },
     loadingBox: { paddingVertical: 40, alignItems: "center" },
+    
+    // Task 41: View Toggle
+    toggleRow: { flexDirection: "row", justifyContent: "center", paddingVertical: 12 },
+    toggleBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: c.border, marginHorizontal: 4 },
+    toggleBtnActive: { backgroundColor: c.primary + "11", borderColor: c.primary },
+    toggleText: { fontSize: 13, fontWeight: "700", color: c.textSecondary },
+    toggleTextActive: { color: c.primary },
+
     row: {
       marginTop: 12,
       padding: 14,
@@ -137,6 +145,12 @@ const makeStyles = (c: ThemeColors) =>
     countMaybe: { color: c.warning },
     countBusy: { color: c.danger },
     countUnknown: { color: c.textMuted },
+    
+    // Task 41: List View Styles
+    listSection: { marginTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: c.border },
+    listTitle: { fontSize: 16, fontWeight: "800", color: c.text, marginBottom: 4 },
+    listSubtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 12 },
+
     // Detail overlay
     detailBackdrop: {
       flex: 1,
@@ -210,6 +224,7 @@ export default function AvailabilityHeatmap({
 
   const { members, loading, load, computeHeatmap } = useSquadAvailability();
   const [openSlotId, setOpenSlotId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // Load members when modal opens
   useEffect(() => {
@@ -258,8 +273,18 @@ export default function AvailabilityHeatmap({
 
           <View style={styles.header}>
             <Text style={styles.title}>Availability heatmap</Text>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close heatmap">
               <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Task 41: View Toggle */}
+          <View style={styles.toggleRow}>
+            <TouchableOpacity style={[styles.toggleBtn, viewMode === "grid" && styles.toggleBtnActive]} onPress={() => setViewMode("grid")}>
+              <Text style={[styles.toggleText, viewMode === "grid" && styles.toggleTextActive]}>Grid View</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.toggleBtn, viewMode === "list" && styles.toggleBtnActive]} onPress={() => setViewMode("list")}>
+              <Text style={[styles.toggleText, viewMode === "list" && styles.toggleTextActive]}>List View</Text>
             </TouchableOpacity>
           </View>
 
@@ -283,12 +308,12 @@ export default function AvailabilityHeatmap({
                   </View>
                 )}
 
-                {poll.slots.map((slot) => {
+                {/* Grid View (Default) */}
+                {viewMode === "grid" && poll.slots.map((slot) => {
                   const detail: SlotHeatmapDetail = heatmap[slot.id];
                   if (!detail) return null;
                   const meta = STATUS_META[detail.status];
                   const metaColor = (colors as any)[meta.bgKey] as string;
-
                   const { date, time } = formatSlotLocal(slot);
 
                   return (
@@ -297,41 +322,61 @@ export default function AvailabilityHeatmap({
                       style={styles.row}
                       activeOpacity={0.75}
                       onPress={() => setOpenSlotId(slot.id)}
+                      accessible={true}
+                      accessibilityLabel={`${date} ${time}. Status: ${meta.label}. ${detail.free.length} free, ${detail.busy.length} busy.`}
                     >
                       <View style={styles.rowHeader}>
                         <View>
                           <Text style={styles.rowDate}>{date}</Text>
                           <Text style={styles.rowTime}>{time}</Text>
                         </View>
-                        <View
-                          style={[
-                            styles.pill,
-                            { backgroundColor: metaColor + "22" },
-                          ]}
-                        >
-                          <Text
-                            style={[styles.pillText, { color: metaColor }]}
-                          >
-                            {meta.emoji} {meta.label}
-                          </Text>
+                        <View style={[styles.pill, { backgroundColor: metaColor + "22" }]}>
+                          <Text style={[styles.pillText, { color: metaColor }]}>{meta.emoji} {meta.label}</Text>
                         </View>
                       </View>
-
                       <View style={styles.countsRow}>
-                        <Text style={[styles.count, styles.countFree]}>
-                          ✓ {detail.free.length} free
-                        </Text>
-                        <Text style={[styles.count, styles.countMaybe]}>
-                          ~ {detail.maybe.length} maybe
-                        </Text>
-                        <Text style={[styles.count, styles.countBusy]}>
-                          ✕ {detail.busy.length} busy
-                        </Text>
-                        <Text style={[styles.count, styles.countUnknown]}>
-                          ? {detail.unknown.length} unknown
-                        </Text>
+                        <Text style={[styles.count, styles.countFree]}>✓ {detail.free.length} free</Text>
+                        <Text style={[styles.count, styles.countMaybe]}>~ {detail.maybe.length} maybe</Text>
+                        <Text style={[styles.count, styles.countBusy]}>✕ {detail.busy.length} busy</Text>
+                        <Text style={[styles.count, styles.countUnknown]}>? {detail.unknown.length} unknown</Text>
                       </View>
                     </TouchableOpacity>
+                  );
+                })}
+
+                {/* Task 41: List View (Alternative for Screen Readers) */}
+                {viewMode === "list" && poll.slots.map((slot) => {
+                  const detail = heatmap[slot.id];
+                  if (!detail) return null;
+                  const { date, time } = formatSlotLocal(slot);
+                  const meta = STATUS_META[detail.status];
+
+                  return (
+                    <View key={slot.id} style={styles.listSection}>
+                      <Text style={styles.listTitle}>{date} @ {time}</Text>
+                      <Text style={styles.listSubtitle}>Overall: {meta.label}</Text>
+                      
+                      {detail.free.length > 0 && (
+                        <View>
+                          <Text style={[styles.sectionLabel, { color: colors.success }]}>Free ({detail.free.length})</Text>
+                          {detail.free.map(m => <Text key={m.uid} style={styles.memberName}>• {m.name}</Text>)}
+                        </View>
+                      )}
+                      
+                      {detail.maybe.length > 0 && (
+                        <View>
+                          <Text style={[styles.sectionLabel, { color: colors.warning }]}>Maybe ({detail.maybe.length})</Text>
+                          {detail.maybe.map(m => <Text key={m.uid} style={styles.memberName}>• {m.name}</Text>)}
+                        </View>
+                      )}
+
+                      {detail.busy.length > 0 && (
+                        <View>
+                          <Text style={[styles.sectionLabel, { color: colors.danger }]}>Busy ({detail.busy.length})</Text>
+                          {detail.busy.map(m => <Text key={m.uid} style={styles.memberName}>• {m.name}</Text>)}
+                        </View>
+                      )}
+                    </View>
                   );
                 })}
               </>

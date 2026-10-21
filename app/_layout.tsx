@@ -1,7 +1,7 @@
 import "../src/lib/reactPolyfills";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { ThemeProvider, useTheme } from "../src/theme/ThemeContext";
@@ -11,16 +11,15 @@ import { useNotifications } from "../src/hooks/useNotifications";
 import { attachDeepLinkHandler } from "../src/services/deepLinkService";
 import { initSentry, setSentryUser, clearSentryUser } from "../src/lib/sentry";
 import { initI18n } from "../src/i18n";
+import { getLatestLegalDoc } from "../src/services/legalService";
+import ConsentModal from "../src/components/legal/ConsentModal";
+import RestoreAccountModal from "../src/components/auth/RestoreAccountModal";
 
-// Sentry: safe to init at module level (has its own SSR guard)
 initSentry();
 
 function AppBootstrap() {
   const { user } = useAuth();
 
-  // ─────────────────────────────────────────────────────────
-  // i18n init — moved into useEffect so it only runs on the client
-  // ─────────────────────────────────────────────────────────
   useEffect(() => {
     initI18n().catch((err) => {
       console.warn("[i18n] init failed:", err);
@@ -44,6 +43,54 @@ function AppBootstrap() {
 
 function RootWithTheme() {
   const { colors, isDark } = useTheme();
+  const { user } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
+
+  const [consentReq, setConsentReq] = useState<{ type: "privacy" | "terms"; version: string } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // FIX: Cast segments[0] as string to avoid TS error on strict route types
+    const inAuthGroup = (segments[0] as string) === "(auth)";
+    const inOnboarding = (segments[0] as string) === "onboarding";
+    
+    if (!inAuthGroup && !inOnboarding && !user.hasSeenOnboarding) {
+      router.replace("/onboarding" as any);
+    }
+  }, [user, segments, router]);
+
+  useEffect(() => {
+    if (!user) {
+      setConsentReq(null);
+      return;
+    }
+
+    if (user.isDeleted || !user.hasSeenOnboarding) return;
+
+    const checkConsent = async () => {
+      try {
+        const privacyDoc = await getLatestLegalDoc("privacy");
+        if (privacyDoc && user.acceptedPrivacyVersion !== privacyDoc.version) {
+          setConsentReq({ type: "privacy", version: privacyDoc.version });
+          return;
+        }
+
+        const termsDoc = await getLatestLegalDoc("terms");
+        if (termsDoc && user.acceptedTermsVersion !== termsDoc.version) {
+          setConsentReq({ type: "terms", version: termsDoc.version });
+          return;
+        }
+
+        setConsentReq(null);
+      } catch (e) {
+        console.warn("Failed to check legal consent", e);
+      }
+    };
+
+    checkConsent();
+  }, [user]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
@@ -52,40 +99,19 @@ function RootWithTheme() {
       <OfflineBanner />
 
       <Stack screenOptions={{ headerShown: false }}>
-        {/* ─── Entry point ─── */}
         <Stack.Screen name="index" />
-
-        {/* ─── Standalone screens ─── */}
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen name="search" />
         <Stack.Screen name="referral" />
-
-        {/* ─── Plan flows ─── */}
-        <Stack.Screen
-          name="plan/create"
-          options={{ presentation: "modal", animation: "slide_from_bottom" }}
-        />
+        <Stack.Screen name="plan/create" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         <Stack.Screen name="plan/[id]" />
         <Stack.Screen name="plan/chat/[id]" />
-
-        {/* ─── Squad flows ─── */}
-        <Stack.Screen
-          name="squad/create"
-          options={{ presentation: "modal", animation: "slide_from_bottom" }}
-        />
+        <Stack.Screen name="squad/create" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         <Stack.Screen name="squad/[id]" />
-
-        {/* ─── Invitation flows ─── */}
-        <Stack.Screen
-          name="invite/create"
-          options={{ presentation: "modal", animation: "slide_from_bottom" }}
-        />
+        <Stack.Screen name="invite/create" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         <Stack.Screen name="invitations/index" />
-
-        {/* ─── Partner discovery ─── */}
         <Stack.Screen name="partner/matches" />
         <Stack.Screen name="partner/chat/[id]" />
-
-        {/* ─── Settings ─── */}
         <Stack.Screen name="settings/safety" />
         <Stack.Screen name="settings/emergency-contacts" />
         <Stack.Screen name="settings/blocked-users" />
@@ -93,27 +119,29 @@ function RootWithTheme() {
         <Stack.Screen name="settings/account" />
         <Stack.Screen name="settings/theme" />
         <Stack.Screen name="settings/language" />
-
-        {/* ─── Monetization ─── */}
+        <Stack.Screen name="legal/[type]" />
         <Stack.Screen name="wallet" />
         <Stack.Screen name="subscription" />
         <Stack.Screen name="boosts" />
-
-        {/* ─── Templates ─── */}
         <Stack.Screen name="templates/index" />
-
-        {/* ─── Vendor onboarding ─── */}
-        <Stack.Screen
-          name="vendor/onboarding"
-          options={{ presentation: "modal", animation: "slide_from_bottom" }}
-        />
-
-        {/*
-          Note: The `(auth)` and `(tabs)` groups are NOT declared here.
-          Expo Router auto-registers them from their own `_layout.tsx` files.
-          Declaring them as <Stack.Screen> causes the "[Layout children]" warning.
-        */}
+        <Stack.Screen name="vendor/onboarding" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       </Stack>
+
+      {consentReq && !user?.isDeleted && user?.hasSeenOnboarding && (
+        <ConsentModal
+          visible={true}
+          type={consentReq.type}
+          latestVersion={consentReq.version}
+          onAccepted={() => setConsentReq(null)}
+        />
+      )}
+
+      {user?.isDeleted && (
+        <RestoreAccountModal
+          visible={true}
+          onRestored={() => {}}
+        />
+      )}
     </View>
   );
 }

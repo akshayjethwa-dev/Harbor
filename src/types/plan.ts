@@ -153,6 +153,10 @@ export interface Plan {
   // ─── Task 36: No-Show Tracking ───
   attendanceMarked?: boolean;
   excusedUids?: string[];
+
+  hostSubscriptionTier?: string;
+  isHostTier?: boolean;
+  requiresWaiver?: boolean;
 }
 
 // ─── Chat ───
@@ -201,6 +205,7 @@ export interface PlanDraft {
   requirements: PlanRequirements;
   approvalMode: ApprovalMode;
   visibility: PlanVisibility;
+  requiresWaiver?: boolean;
 }
 
 export const EMPTY_PLAN_DRAFT: PlanDraft = {

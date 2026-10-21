@@ -1,3 +1,4 @@
+// src/components/safety/SOSButton.tsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -8,14 +9,16 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import * as Location from "expo-location";
 import { useAuth } from "../../context/AuthContext";
 import {
   triggerSOS,
   cancelSOS,
   getEmergencyContacts,
+  getSOSLocation, // <-- Task 39: Import location helper
 } from "../../services/safetyService";
 import { SOS_CANCEL_WINDOW_MS, SOS_ESCALATION_MS } from "../../types/safety";
+// ─── Task 39: Emergency Contacts Manager ───
+import ManageEmergencyContactsModal from "./ManageEmergencyContactsModal";
 
 interface Props {
   chatId?: string;
@@ -33,6 +36,9 @@ export default function SOSButton({ chatId, planId, squadId }: Props) {
   const [sending, setSending] = useState(false);
   const [noContacts, setNoContacts] = useState(false);
   const [escalate, setEscalate] = useState(false);
+  
+  // Task 39: Modal State
+  const [showContactsModal, setShowContactsModal] = useState(false);
 
   const cancelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const escalateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,7 +67,7 @@ export default function SOSButton({ chatId, planId, squadId }: Props) {
 
   const openConfirm = async () => {
     if (!user) return;
-    // Check emergency contacts presence (informational)
+    // Check emergency contacts presence
     const contacts = await getEmergencyContacts(user.uid);
     setNoContacts(contacts.length === 0);
     setCountdown(10);
@@ -72,23 +78,8 @@ export default function SOSButton({ chatId, planId, squadId }: Props) {
     if (!user) return;
     setSending(true);
 
-    // Get GPS
-    let lat: number | null = null;
-    let lng: number | null = null;
-    let acc: number | null = null;
-    try {
-      const perm = await Location.requestForegroundPermissionsAsync();
-      if (perm.status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        lat = loc.coords.latitude;
-        lng = loc.coords.longitude;
-        acc = loc.coords.accuracy ?? null;
-      }
-    } catch (e) {
-      console.warn("SOS location failed:", e);
-    }
+    // Task 39: Get GPS with fallback
+    const { lat, lng, acc, isLastKnown } = await getSOSLocation();
 
     try {
       const id = await triggerSOS({
@@ -96,6 +87,7 @@ export default function SOSButton({ chatId, planId, squadId }: Props) {
         latitude: lat,
         longitude: lng,
         accuracy: acc,
+        isLastKnownLocation: isLastKnown,
         chatId,
         planId,
         squadId,
@@ -165,9 +157,15 @@ export default function SOSButton({ chatId, planId, squadId }: Props) {
             {noContacts && (
               <View style={styles.warningBox}>
                 <Text style={styles.warningText}>
-                  ⚠️ You haven't set emergency contacts. Add them in Settings →
-                  Safety for faster response.
+                  ⚠️ You haven't set emergency contacts.
                 </Text>
+                {/* Task 39: Button to open ManageContacts */}
+                <TouchableOpacity 
+                  style={{ marginTop: 8, backgroundColor: "#FFF", padding: 8, borderRadius: 6, alignItems: "center" }}
+                  onPress={() => setShowContactsModal(true)}
+                >
+                  <Text style={{ color: "#7A5C00", fontWeight: "700" }}>+ Add Contacts Now</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -241,6 +239,18 @@ export default function SOSButton({ chatId, planId, squadId }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* Task 39: Manage Contacts Modal */}
+      <ManageEmergencyContactsModal 
+        visible={showContactsModal} 
+        onClose={() => {
+          setShowContactsModal(false);
+          // Re-check if they added any
+          if (user) {
+            getEmergencyContacts(user.uid).then(c => setNoContacts(c.length === 0));
+          }
+        }} 
+      />
     </>
   );
 }

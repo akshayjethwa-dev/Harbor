@@ -1,3 +1,4 @@
+// src/types/safety.ts
 import { Timestamp } from "firebase/firestore";
 
 // ─────────────────────────────────────────────────────────
@@ -16,21 +17,23 @@ export interface SOSEvent {
   latitude: number | null;
   longitude: number | null;
   locationAccuracy?: number | null;
+  isLastKnownLocation: boolean; // <-- Task 39: Fallback tracking
   status: SOSStatus;
   message?: string;
-  respondedBy: string[];    // uids of users who acknowledged
-  emergencyContactsNotified: string[];  // phone numbers
+  respondedBy: string[];    
+  emergencyContactsNotified: string[];  
+  autoAlertSent: boolean;   // <-- Task 39: 5-minute escalation tracker
   createdAt: Timestamp | any;
   cancelledAt?: Timestamp | any;
   resolvedAt?: Timestamp | any;
-  expiresAt: Timestamp | any;    // 30 minutes after creation
+  expiresAt: Timestamp | any;    
 }
 
 // ─────────────────────────────────────────────────────────
 // Live Location
 // ─────────────────────────────────────────────────────────
 export interface LiveLocation {
-  id: string;               // `${uid}_${scopeId}`
+  id: string;               
   uid: string;
   userName: string;
   scopeType: "plan" | "squad" | "match";
@@ -39,7 +42,7 @@ export interface LiveLocation {
   longitude: number;
   accuracy: number | null;
   updatedAt: Timestamp | any;
-  expiresAt: Timestamp | any;    // 2 hours after start
+  expiresAt: Timestamp | any;    
 }
 
 // ─────────────────────────────────────────────────────────
@@ -56,7 +59,7 @@ export interface EmergencyContact {
 // Block User
 // ─────────────────────────────────────────────────────────
 export interface Block {
-  id: string;              // `${blockerUid}_${blockedUid}`
+  id: string;              
   blockerUid: string;
   blockedUid: string;
   blockedName: string;
@@ -124,7 +127,7 @@ export interface Dispute {
   againstName: string;
   reason: string;
   evidenceUrls: string[];
-  amount: number;          // ₹ amount in dispute
+  amount: number;          
   outcome: DisputeOutcome;
   moderatorNotes?: string;
   resolvedBy?: string;
@@ -148,17 +151,17 @@ export interface Strike {
   uid: string;
   reason: StrikeReason;
   reportId?: string;
-  issuedBy: string;        // moderator uid or "system"
+  issuedBy: string;        
   notes?: string;
   active: boolean;
-  expiresAt: Timestamp | any;    // 12 months from creation
+  expiresAt: Timestamp | any;    
   createdAt: Timestamp | any;
 }
 
-export const SOS_DURATION_MS = 30 * 60 * 1000;             // 30 minutes
-export const SOS_CANCEL_WINDOW_MS = 10 * 1000;              // 10 seconds
-export const SOS_ESCALATION_MS = 2 * 60 * 1000;             // 2 minutes
-export const LIVE_LOCATION_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
-export const LIVE_LOCATION_INTERVAL_MS = 30 * 1000;         // 30 seconds
+export const SOS_DURATION_MS = 30 * 60 * 1000;             
+export const SOS_CANCEL_WINDOW_MS = 10 * 1000;              
+export const SOS_ESCALATION_MS = 2 * 60 * 1000;             
+export const LIVE_LOCATION_DURATION_MS = 2 * 60 * 60 * 1000; 
+export const LIVE_LOCATION_INTERVAL_MS = 30 * 1000;         
 export const MAX_EMERGENCY_CONTACTS = 3;
-export const STRIKE_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;   // 12 months
+export const STRIKE_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;   

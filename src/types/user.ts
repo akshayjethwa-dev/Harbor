@@ -134,6 +134,25 @@ export interface GarbaCrewUser {
     dndStart?: number;         // 0-23 (e.g., 22 for 10 PM)
     dndEnd?: number;           // 0-23 (e.g., 7 for 7 AM)
   };
+
+  analyticsOptOut?: boolean;
+
+  acceptedPrivacyVersion?: string;
+  acceptedTermsVersion?: string;
+  hasParentalConsent?: boolean;
+  lastConsentDate?: Date;
+
+  legalHold?: boolean; 
+  hasSeenOnboarding?: boolean;
+  badges?: string[]; 
+  showOnLeaderboard?: boolean;
+
+  currentStreak?: number;
+  bestStreak?: number;
+  streakFreezes?: number;
+  lastStreakWeek?: string;
+
+  subscriptionTier?: "free" | "plus" | "pro" | "host";
 }
 
 export interface ProfileSetupData {

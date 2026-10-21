@@ -124,6 +124,10 @@ export default function PlanCard({ plan }: { plan: Plan }) {
         router.push({ pathname: "/plan/[id]", params: { id: plan.id } })
       }
       activeOpacity={0.85}
+      // ─── Task 41: Accessibility ───
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={`Plan: ${plan.title}. Date: ${formatDate(plan.startTime)} at ${formatTime(plan.startTime)}. Location: ${plan.locationName}, ${plan.city}. Hosted by ${plan.hostName}. ${spotsLabel}. ${priceLabel}.`}
     >
       <View style={[styles.banner, { backgroundColor: act.color + "22" }]}>
         <Text style={styles.emoji}>{act.emoji}</Text>
@@ -134,6 +138,11 @@ export default function PlanCard({ plan }: { plan: Plan }) {
           {plan.costTotal > 0 && (
             <View style={[styles.badge, { backgroundColor: colors.success }]}>
               <Text style={styles.badgeText}>{priceLabel}</Text>
+            </View>
+          )}
+          {plan.hostSubscriptionTier === "host" && (
+            <View style={[styles.badge, { backgroundColor: "#DAA520" }]}>
+              <Text style={styles.badgeText}>👑 Host</Text>
             </View>
           )}
           {plan.requirements.verifiedOnly && (

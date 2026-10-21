@@ -50,6 +50,11 @@ import MarkAttendanceModal from "../../src/components/plan/MarkAttendanceModal";
 import { disputeNoShow } from "../../src/services/attendanceService";
 // ─── Task 37: Fake Profile Detection ───
 import ReportProfileModal from "../../src/components/profile/ReportProfileModal";
+// ─── Task 48: Contextual Tip ───
+import ContextualTip from "../../src/components/onboarding/ContextualTip";
+// ─── Task 50: Invite Prompt ───
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import InvitePromptModal from "../../src/components/referral/InvitePromptModal";
 
 function formatFullDate(ts: any): string {
   if (!ts) return "TBD";
@@ -92,6 +97,9 @@ export default function PlanDetailScreen() {
   // ─── Task 37: Report Profile Modal ───
   const [reportTarget, setReportTarget] = useState<PlanParticipant | null>(null);
 
+  // ─── Task 50: Invite Prompt State ───
+  const [showInvitePrompt, setShowInvitePrompt] = useState(false);
+
   // Live subscription to plan
   useEffect(() => {
     if (!id) return;
@@ -124,6 +132,33 @@ export default function PlanDetailScreen() {
       })
       .catch((err) => console.warn("Could not load organizer ranges:", err));
   }, [plan?.hostUid]);
+
+  // ─── Task 50: Trigger Invite Prompt Logic ───
+  useEffect(() => {
+    const checkInvitePrompt = async () => {
+      if (!user || !plan) return;
+
+      // 1. Must be the host of this plan
+      if (user.uid !== plan.hostUid) return;
+
+      // 2. Must be their first plan (assuming createPlan increments plansCreatedCount)
+      const isFirstPlan = (user.plansCreatedCount || 0) === 1;
+      if (!isFirstPlan) return;
+
+      // 3. Check 7-day dismissal window
+      const dismissedAtStr = await AsyncStorage.getItem("invite_prompt_dismissed_at");
+      if (dismissedAtStr) {
+        const dismissedAt = parseInt(dismissedAtStr, 10);
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        if (Date.now() - dismissedAt < sevenDays) return;
+      }
+
+      // 4. Show the prompt after a slight delay to let the screen render
+      setTimeout(() => setShowInvitePrompt(true), 1500);
+    };
+
+    checkInvitePrompt();
+  }, [user, plan]);
 
   useFocusEffect(useCallback(() => {}, []));
 
@@ -327,6 +362,9 @@ export default function PlanDetailScreen() {
   const isMarkedNoShow = plan.noShowUids?.includes(user?.uid || "");
   const showDisputeBtn = isMarkedNoShow && hasPlanEnded;
 
+  // ─── Task 44: Plan Insights derived state ───
+  const showInsightsBtn = isHost && hasPlanEnded && plan.status !== "cancelled";
+
   let cta = "I'm In";
   const ctaDisabled = false;
   if (role === "host") cta = "Open Chat";
@@ -395,6 +433,12 @@ export default function PlanDetailScreen() {
 
           {/* ─── Task 24: Presence Bar ─── */}
           <PresenceBar viewers={viewers} />
+
+          {/* Task 48: Contextual Tip */}
+          <ContextualTip 
+            id="date_poll_tip" 
+            text="Tip: Tap here to vote on proposed dates so the organizer knows when you're free!" 
+          />
 
           {/* ─── Task 2 & 3: Date poll card (with heatmap integration) ─── */}
           {showPoll && (
@@ -543,9 +587,24 @@ export default function PlanDetailScreen() {
             </TouchableOpacity>
           )}
 
-          {/* ─── Task 6, 12, 19, 22, 23, 30, 31: Action Buttons ─── */}
+          {/* ─── Task 6, 12, 19, 22, 23, 30, 31, 44: Action Buttons ─── */}
           {showParticipantExtras && (
             <View style={{ marginBottom: 12 }}>
+              
+              {/* Task 44: Plan Insights */}
+              {showInsightsBtn && (
+                <TouchableOpacity
+                  style={[styles.actionCardBtn, { backgroundColor: "#E3F2FD", borderColor: "#2196F3", marginBottom: 10 }]}
+                  onPress={() => router.push(`/plan/insights/${plan.id}` as any)}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Text style={{ fontSize: 20 }}>📊</Text>
+                    <Text style={[styles.actionCardText, { color: "#2196F3" }]}>View Plan Insights</Text>
+                  </View>
+                  <Text style={[styles.actionCardChevron, { color: "#2196F3" }]}>›</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Activity Feed */}
               <TouchableOpacity
                 style={styles.actionCardBtn}
@@ -835,10 +894,15 @@ export default function PlanDetailScreen() {
             uid: reportTarget.uid,
             name: reportTarget.name,
             photoUrl: reportTarget.photoUrl,
-            // Pass minimal required fields since the modal only needs uid and name
           } as GarbaCrewUser}
         />
       )}
+
+      {/* Task 50: Invite Prompt Modal */}
+      <InvitePromptModal 
+        visible={showInvitePrompt} 
+        onClose={() => setShowInvitePrompt(false)} 
+      />
     </SafeAreaView>
   );
 }
@@ -901,7 +965,6 @@ const styles = StyleSheet.create({
   hostName: { fontSize: 15, fontWeight: "700", color: "#333" },
   hostMeta: { fontSize: 12, color: "#999", marginTop: 2 },
 
-  // Task 34: Edit Settings
   editSettingsBtn: {
     alignSelf: "flex-start",
     paddingVertical: 8,
@@ -918,7 +981,6 @@ const styles = StyleSheet.create({
     color: "#666",
   },
 
-  // ─── Task 2: Date poll create button ───
   pollCreateBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -939,7 +1001,6 @@ const styles = StyleSheet.create({
   pollCreateSub: { fontSize: 12, color: "#999", marginTop: 2 },
   pollCreateChevron: { fontSize: 22, color: "#E91E63", fontWeight: "700" },
 
-  // ─── Task 6, 12, 19, 22, 23, 30, 31: Action Card Buttons ───
   actionCardBtn: {
     flexDirection: "row",
     alignItems: "center",
