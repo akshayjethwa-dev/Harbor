@@ -13,7 +13,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useThemedStyles } from "../../hooks/useThemedStyles";
 import { ThemeColors } from "../../theme/colors";
 
-const DISMISS_KEY = "@Harbor:notif_banner_dismissed";
+const DISMISS_KEY = "@Kithra:notif_banner_dismissed";
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({

@@ -133,7 +133,7 @@ export default function RecapCard({ plan, photos, expenses, tasks }: Props) {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Made with Harbor 🧡</Text>
+        <Text style={styles.footerText}>Made with Kithra 🧡</Text>
       </View>
     </View>
   );

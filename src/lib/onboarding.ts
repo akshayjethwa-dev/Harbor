@@ -1,8 +1,8 @@
 // src/lib/onboarding.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DISMISS_KEY = '@harbor/onboarding_banner_dismissed_at';
-const SQUAD_CREATED_KEY = '@harbor/squad_created_at';
+const DISMISS_KEY = '@Kithra/onboarding_banner_dismissed_at';
+const SQUAD_CREATED_KEY = '@Kithra/squad_created_at';
 
 // ─── 7-day default ────────────────────────────────────────────
 // ✅ Production value:

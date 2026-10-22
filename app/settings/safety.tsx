@@ -134,7 +134,7 @@ export default function SafetySettingsScreen() {
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>Your safety matters</Text>
           <Text style={styles.infoText}>
-            Harbor uses a Trust & Safety system with three-strike enforcement.
+            Kithra uses a Trust & Safety system with three-strike enforcement.
             Report any concerns and our moderators will review within 24 hours.
           </Text>
         </View>

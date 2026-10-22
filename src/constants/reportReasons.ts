@@ -41,7 +41,7 @@ export const REPORT_REASONS: ReportReasonMeta[] = [
   {
     value: "misuse",
     label: "Misuse of platform",
-    description: "Using Harbor for dating, ads, or off-platform deals",
+    description: "Using Kithra for dating, ads, or off-platform deals",
     emoji: "🔞",
   },
   {

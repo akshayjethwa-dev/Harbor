@@ -55,8 +55,8 @@ export const createCheckoutSession = onCall(async (request) => {
     customer_email: user.email || undefined,
     customer: sub?.stripeCustomerId || undefined,
     client_reference_id: request.auth.uid,
-    success_url: "https://harbor.app/wallet?success=true",
-    cancel_url: "https://harbor.app/wallet?canceled=true",
+    success_url: "https://Kithra.app/wallet?success=true",
+    cancel_url: "https://Kithra.app/wallet?canceled=true",
     subscription_data: {
       metadata: { uid: request.auth.uid, tier },
     },

@@ -51,14 +51,14 @@ export default function InvitePromptModal({ visible, onClose }: Props) {
 
   const getReferralLink = () => {
     // If user has a code, use it. Otherwise, default to the app link.
-    const code = user?.referralCode || "harbor";
-    return `https://harbor.app/invite?ref=${code}`;
+    const code = user?.referralCode || "Kithra";
+    return `https://kithra.app/invite?ref=${code}`;
   };
 
   const handleShareLink = async () => {
     try {
       const result = await Share.share({
-        message: `Join me on Harbor! Let's plan our next adventure. Use my link: ${getReferralLink()}`,
+        message: `Join me on Kithra! Let's plan our next adventure. Use my link: ${getReferralLink()}`,
         url: getReferralLink(), // iOS specific
       });
       
@@ -91,7 +91,7 @@ export default function InvitePromptModal({ visible, onClose }: Props) {
         // In a real app, you might trigger an SMS via Twilio here, 
         // or open the native SMS composer. For now, we'll open the Share sheet.
         await Share.share({
-          message: `Hey ${contact.name}! Join me on Harbor. Use my link: ${getReferralLink()}`,
+          message: `Hey ${contact.name}! Join me on Kithra. Use my link: ${getReferralLink()}`,
         });
         
         await handleDismiss();
@@ -119,8 +119,8 @@ export default function InvitePromptModal({ visible, onClose }: Props) {
           <Text style={styles.title}>Plan Created!</Text>
           <Text style={styles.subtitle}>
             {wasReferred 
-              ? "Since a friend invited you, pass it forward! Invite someone to Harbor and get your first bonus."
-              : "Harbor is better with friends. Invite them to join your crew and earn rewards."}
+              ? "Since a friend invited you, pass it forward! Invite someone to Kithra and get your first bonus."
+              : "Kithra is better with friends. Invite them to join your crew and earn rewards."}
           </Text>
 
           <View style={styles.incentiveBox}>

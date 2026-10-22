@@ -80,7 +80,7 @@ export const exportUserData = onCall(async (request) => {
 
     // 8. Upload to Firebase Storage
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const fileName = `exports/${uid}/harbor_data_${timestamp}.json`;
+    const fileName = `exports/${uid}/Kithra_data_${timestamp}.json`;
     const file = bucket.file(fileName);
 
     await file.save(jsonString, {

@@ -181,7 +181,7 @@ export default function SquadRecapScreen() {
       if (Platform.OS === "web") {
         const link = document.createElement("a");
         link.href = uri;
-        link.download = `harbor-squad-recap-${year}.jpg`;
+        link.download = `Kithra-squad-recap-${year}.jpg`;
         link.click();
         return;
       }

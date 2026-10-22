@@ -53,7 +53,7 @@ export default function ConsentModal({ visible, type, latestVersion, onAccepted 
   const handleDecline = () => {
     Alert.alert(
       "Decline Policy?",
-      "You must accept the policy to continue using Harbor. You will be signed out.",
+      "You must accept the policy to continue using Kithra. You will be signed out.",
       [
         { text: "Go Back", style: "cancel" },
         { text: "Sign Out", style: "destructive", onPress: () => signOut(auth) }
@@ -67,7 +67,7 @@ export default function ConsentModal({ visible, type, latestVersion, onAccepted 
         <View style={styles.sheet}>
           <Text style={styles.title}>We've updated our {type === "privacy" ? "Privacy Policy" : "Terms"}</Text>
           <Text style={styles.subtitle}>
-            Please review and accept the latest version ({latestVersion}) to continue using Harbor.
+            Please review and accept the latest version ({latestVersion}) to continue using Kithra.
           </Text>
 
           <View style={styles.checkboxRow}>

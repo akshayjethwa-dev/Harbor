@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Harbor",
-    "slug": "harbor",
-    "scheme": "harbor",
+    "name": "Kithra",
+    "slug": "garbacrew",
+    "scheme": "Kithra",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -11,19 +11,19 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Harbor needs camera access for selfie verification."
+          "cameraPermission": "Kithra needs camera access for selfie verification."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Harbor needs access to your photos to set a profile picture."
+          "photosPermission": "Kithra needs access to your photos to set a profile picture."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Harbor uses your location to find Plans near you."
+          "locationWhenInUsePermission": "Kithra uses your location to find Plans near you."
         }
       ],
       [
@@ -38,14 +38,14 @@
       "expo-sharing"
     ],
     "ios": {
-      "bundleIdentifier": "com.harbor.app",
+      "bundleIdentifier": "com.kithra.app",
       "supportsTablet": true,
       "config": {
         "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
       }
     },
     "android": {
-      "package": "com.harbor.app",
+      "package": "com.kithra.app",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",

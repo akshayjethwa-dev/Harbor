@@ -11,7 +11,7 @@ export const BADGES: BadgeDefinition[] = [
   {
     id: "first_plan",
     name: "First Steps",
-    description: "Created your first Plan on Harbor.",
+    description: "Created your first Plan on Kithra.",
     icon: "🌱",
     color: "#4CAF50", // Green
   },

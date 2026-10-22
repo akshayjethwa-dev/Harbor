@@ -17,7 +17,7 @@ const { width } = Dimensions.get("window");
 const STEPS = [
   {
     emoji: "👋",
-    title: "Welcome to Harbor",
+    title: "Welcome to Kithra",
     desc: "The easiest way to find and join plans with your crew. Let's take a quick tour.",
   },
   {

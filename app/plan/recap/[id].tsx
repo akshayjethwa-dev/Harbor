@@ -93,7 +93,7 @@ export default function PlanRecapScreen() {
       if (Platform.OS === "web") {
         const link = document.createElement("a");
         link.href = uri;
-        link.download = `harbor-recap-${plan?.id}.jpg`;
+        link.download = `Kithra-recap-${plan?.id}.jpg`;
         link.click();
         return;
       }
@@ -118,7 +118,7 @@ export default function PlanRecapScreen() {
     if (!plan) return;
     
     // We provide a web fallback URL alongside the deep link
-    const webUrl = `https://harbor.app/plan/${plan.id}`; 
+    const webUrl = `https://Kithra.app/plan/${plan.id}`; 
     const message = `Check out the recap from our plan "${plan.title}"! 🧡\n\n${webUrl}`;
 
     try {

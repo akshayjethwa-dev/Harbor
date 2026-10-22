@@ -65,7 +65,7 @@ async function sendTwilioAlerts(alertId: string, alertData: any) {
     // 2. Trigger Voice Call (Text-to-Speech)
     try {
       await twilioClient.calls.create({
-        twiml: `<Response><Say voice="alice">Emergency alert from ${alertData.userName}. Please check your messages for their location. This is an automated call from Harbor.</Say></Response>`,
+        twiml: `<Response><Say voice="alice">Emergency alert from ${alertData.userName}. Please check your messages for their location. This is an automated call from Kithra.</Say></Response>`,
         from: process.env.TWILIO_PHONE,
         to: contact.phone,
       });

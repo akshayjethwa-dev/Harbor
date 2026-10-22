@@ -342,14 +342,14 @@ export default function ProfileScreen() {
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Task 48: How to use Harbor ─── */}
+        {/* ─── Task 48: How to use Kithra ─── */}
         <TouchableOpacity
           style={styles.safetyLink}
           onPress={() => router.push("/onboarding" as any)}
         >
           <Text style={styles.safetyLinkIcon}>🎓</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.safetyLinkTitle}>How to use Harbor</Text>
+            <Text style={styles.safetyLinkTitle}>How to use Kithra</Text>
             <Text style={styles.safetyLinkSub}>Replay the guided tour</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>

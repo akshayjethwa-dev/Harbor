@@ -69,7 +69,7 @@ if (isFirebaseConfigured) {
     }
   } catch (err) {
     console.warn(
-      '[Harbor] Firebase init failed, operating in mock data mode',
+      '[Kithra] Firebase init failed, operating in mock data mode',
       err,
     );
   }

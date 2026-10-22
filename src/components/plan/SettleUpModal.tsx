@@ -62,7 +62,7 @@ export default function SettleUpModal({ visible, onClose, settlement, planId, on
     if (!hasValidUpi) return Alert.alert("Invalid UPI", "The payee has not set a valid UPI ID.");
     if (exceedsLimit) return Alert.alert("Limit Exceeded", "UPI limit is ₹1,00,000. Please split the payment.");
 
-    const url = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payee?.name || "")}&am=${currentAmount}&cu=INR&tn=${encodeURIComponent("Harbor Settlement")}`;
+    const url = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payee?.name || "")}&am=${currentAmount}&cu=INR&tn=${encodeURIComponent("Kithra Settlement")}`;
     
     try {
       const supported = await Linking.canOpenURL(url);

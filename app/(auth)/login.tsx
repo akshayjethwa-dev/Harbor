@@ -55,7 +55,7 @@ export default function LoginScreen() {
     >
       <View style={styles.content}>
         <Text style={styles.logo}>🪩</Text>
-        <Text style={styles.title}>Welcome to Harbor</Text>
+        <Text style={styles.title}>Welcome to Kithra</Text>
         <Text style={styles.subtitle}>Find your crew. Join the celebration.</Text>
 
         <View style={styles.form}>

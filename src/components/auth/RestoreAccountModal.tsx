@@ -69,7 +69,7 @@ export default function RestoreAccountModal({ visible, onRestored }: Props) {
           <Text style={styles.subtitle}>
             Your account is currently scheduled for permanent deletion. 
             {"\n\n"}
-            Would you like to restore it and keep using Harbor?
+            Would you like to restore it and keep using Kithra?
           </Text>
 
           <View style={styles.actions}>

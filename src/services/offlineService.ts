@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import { ItineraryItem } from "../types/itinerary";
 
-const PREFIX = "@harbor_offline_itinerary_";
+const PREFIX = "@Kithra_offline_itinerary_";
 const EXPIRATION_DAYS = 30;
 
 export interface OfflineItineraryData {

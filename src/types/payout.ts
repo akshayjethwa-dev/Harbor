@@ -9,7 +9,7 @@ export interface HostPayout {
   planId: string;
   planTitle: string;
   grossAmount: number;     // Total collected from participants
-  platformFee: number;     // Harbor's cut (e.g., 10%)
+  platformFee: number;     // Kithra's cut (e.g., 10%)
   netAmount: number;       // grossAmount - platformFee
   status: PayoutStatus;
   createdAt: Timestamp | any;

@@ -59,7 +59,7 @@ export async function exportPayoutsToCSV(payouts: HostPayout[]): Promise<void> {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "harbor_revenue.csv");
+    link.setAttribute("download", "Kithra_revenue.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -67,7 +67,7 @@ export async function exportPayoutsToCSV(payouts: HostPayout[]): Promise<void> {
   }
 
   // Native Share
-  const fileUri = FileSystem.cacheDirectory + "harbor_revenue.csv";
+  const fileUri = FileSystem.cacheDirectory + "Kithra_revenue.csv";
   await FileSystem.writeAsStringAsync(fileUri, csvContent, {
     encoding: FileSystem.EncodingType.UTF8,
   });

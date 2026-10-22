@@ -80,7 +80,7 @@ export default function ReportProfileModal({ visible, onClose, targetUser }: Pro
           </View>
           
           <Text style={styles.desc}>
-            Help us keep Harbor safe. Reports are anonymous. False reports may result in penalties on your account.
+            Help us keep Kithra safe. Reports are anonymous. False reports may result in penalties on your account.
           </Text>
 
           <ScrollView>

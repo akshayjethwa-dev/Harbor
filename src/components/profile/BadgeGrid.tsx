@@ -49,7 +49,7 @@ export default function BadgeGrid({ badges }: Props) {
   const handleShare = async (badge: BadgeDefinition) => {
     try {
       await Share.share({
-        message: `I just earned the "${badge.name}" badge on Harbor! ${badge.icon}\n\n${badge.description}\n\nJoin me on Harbor to plan your next adventure!`,
+        message: `I just earned the "${badge.name}" badge on Kithra! ${badge.icon}\n\n${badge.description}\n\nJoin me on Kithra to plan your next adventure!`,
       });
     } catch (e: any) {
       Alert.alert("Error", e.message);

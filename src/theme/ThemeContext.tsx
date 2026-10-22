@@ -24,7 +24,7 @@ const ThemeContext = createContext<ThemeState>({
   setMode: () => {},
 });
 
-const STORAGE_KEY = "@Harbor:themeMode";
+const STORAGE_KEY = "@Kithra:themeMode";
 const isBrowser =
   typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 
