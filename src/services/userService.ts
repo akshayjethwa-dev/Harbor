@@ -76,10 +76,6 @@ export async function getUserProfile(
 // Task 1: General Availability
 // ─────────────────────────────────────────────
 
-/**
- * Persist the user's recurring weekly availability + their custom
- * time-block ranges to Firestore.
- */
 export async function updateUserAvailability(
   uid: string,
   availability: AvailabilityMap,
@@ -89,7 +85,6 @@ export async function updateUserAvailability(
 ): Promise<void> {
   const docRef = doc(db, "users", uid);
 
-  // Strip undefined values — Firestore rejects them.
   const cleanMap: AvailabilityMap = {};
   for (const [key, value] of Object.entries(availability)) {
     if (value !== undefined && value !== null) {
@@ -119,10 +114,6 @@ export async function updateUserAvailability(
   });
 }
 
-/**
- * Remove all availability — explicitly sets the field to an empty map,
- * which the UI interprets as "unknown" (not "busy").
- */
 export async function clearUserAvailability(uid: string): Promise<void> {
   const docRef = doc(db, "users", uid);
   await updateDoc(docRef, {
@@ -134,10 +125,6 @@ export async function clearUserAvailability(uid: string): Promise<void> {
 // ─────────────────────────────────────────────
 // Task 3: Batch fetch users by UID list
 // ─────────────────────────────────────────────
-/**
- * Fetch multiple user docs by UID. Firestore caps `in` at 10 items per
- * query, so we chunk. Safe to call with 0, 1, or 100+ UIDs.
- */
 export async function getUsersByIds(
   uids: string[]
 ): Promise<GarbaCrewUser[]> {
@@ -157,4 +144,20 @@ export async function getUsersByIds(
     });
   }
   return results;
+}
+
+// ─────────────────────────────────────────────
+// Task 4: Update City
+// ─────────────────────────────────────────────
+export async function updateUserCity(uid: string, city: string): Promise<void> {
+  try {
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, { 
+      city,
+      updatedAt: serverTimestamp() 
+    });
+  } catch (error) {
+    console.error('Error updating city:', error);
+    throw new Error('Could not update location. Please try again.');
+  }
 }

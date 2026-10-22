@@ -49,7 +49,6 @@ export const aggregateAnalytics = onSchedule(
     const dateStr = yesterday.toISOString().split("T")[0];
 
     // Privacy Protection: K-Anonymity
-    // If fewer than 5 users, don't save exact numbers to prevent identifying individuals
     const isPrivacyProtected = dau < 5;
 
     // 2. Save Anonymized Metrics
@@ -65,7 +64,8 @@ export const aggregateAnalytics = onSchedule(
     // 3. Calculate MAU (Simplified: run a 30-day query)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const startOf30Days = admin.firestore.Timestamp.fromDate(thirtyDaysAgo);
+    
+    // FIX: Removed the unused `startOf30Days` variable
     
     const mauSnap = await db.collection("admin_analytics")
       .where("date", ">=", thirtyDaysAgo.toISOString().split("T")[0])
@@ -75,8 +75,6 @@ export const aggregateAnalytics = onSchedule(
     // Update MAU in a separate doc (latest summary)
     let mau = 0;
     if (!mauSnap.empty) {
-      // In a real app, you'd store unique user IDs in a Redis cache or BigQuery to calculate true MAU.
-      // For this simplified version, we sum DAUs as a proxy.
       mauSnap.forEach(d => mau += d.data().dau);
     }
 

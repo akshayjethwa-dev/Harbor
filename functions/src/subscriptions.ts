@@ -7,16 +7,28 @@ import Stripe from "stripe";
 
 const db = admin.firestore();
 
-// Initialize Stripe (Requires STRIPE_SECRET_KEY env var)
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2023-10-16" as any,
-});
+// Safely initialize Stripe to prevent deployment crashes if the key is missing
+let stripe: Stripe | null = null;
+try {
+  if (process.env.STRIPE_SECRET_KEY) {
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2023-10-16" as any,
+    });
+    logger.info("Stripe initialized successfully.");
+  } else {
+    logger.warn("STRIPE_SECRET_KEY not found in environment variables. Subscription features will be mocked.");
+  }
+} catch (e) {
+  logger.error("Failed to initialize Stripe:", e);
+}
 
 /**
  * Task 40/54: Checkout Session (Prorated upgrades)
  */
 export const createCheckoutSession = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in");
+  if (!stripe) throw new HttpsError("failed-precondition", "Stripe is not configured on the server.");
+  
   const { tier } = request.data; // "plus" | "pro" | "host"
 
   const priceMap: Record<string, string> = {
@@ -61,7 +73,7 @@ export const cancelSubscription = onCall(async (request) => {
   const sub = subSnap.data();
   if (!sub) throw new Error("Subscription data missing");
 
-  if (sub.stripeSubscriptionId) {
+  if (sub.stripeSubscriptionId && stripe) {
     await stripe.subscriptions.update(sub.stripeSubscriptionId, {
       cancel_at_period_end: true,
     });
@@ -79,7 +91,7 @@ export const resumeSubscription = onCall(async (request) => {
   const sub = subSnap.data();
   if (!sub) throw new Error("Subscription data missing");
 
-  if (sub.stripeSubscriptionId) {
+  if (sub.stripeSubscriptionId && stripe) {
     await stripe.subscriptions.update(sub.stripeSubscriptionId, {
       cancel_at_period_end: false,
     });

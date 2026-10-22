@@ -6,12 +6,20 @@ import * as logger from "firebase-functions/logger";
 
 const db = admin.firestore();
 
-// Initialize Twilio (Requires Twilio Account SID, Auth Token, and Phone Number)
-// You must set these using: firebase functions:config:set twilio.sid="..." twilio.token="..." twilio.phone="+1..."
-const twilio = require("twilio");
-const twilioClient = process.env.TWILIO_SID && process.env.TWILIO_TOKEN 
-  ? twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN) 
-  : null;
+// Safely initialize Twilio
+let twilioClient: any = null;
+try {
+  // We use require here to prevent build errors if the package is missing
+  const twilio = require("twilio");
+  if (process.env.TWILIO_SID && process.env.TWILIO_TOKEN) {
+    twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+    logger.info("Twilio initialized successfully.");
+  } else {
+    logger.warn("Twilio credentials not found in environment variables. SOS alerts will be mocked.");
+  }
+} catch (e) {
+  logger.warn("Twilio module not installed. Run 'npm install twilio' in the functions folder.");
+}
 
 interface Contact {
   name: string;
@@ -20,7 +28,7 @@ interface Contact {
 
 async function sendTwilioAlerts(alertId: string, alertData: any) {
   if (!twilioClient) {
-    logger.error("Twilio credentials not configured. Cannot send SOS.");
+    logger.error(`[MOCK] SOS triggered for ${alertData.userName}, but Twilio is not configured.`);
     return;
   }
 

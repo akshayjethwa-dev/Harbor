@@ -1,123 +1,127 @@
 // src/components/onboarding/FirstPlanPrompt.tsx
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuth } from "../../context/AuthContext";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { useTheme } from "../../theme/ThemeContext";
-import { useThemedStyles } from "../../hooks/useThemedStyles";
-import { ThemeColors } from "../../theme/colors";
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../theme/ThemeContext';
+import { Spacing, Typography } from '../../constants/theme';
+import Button from '../common/Button';
 
-const DISMISS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+type Props = {
+  visible: boolean;
+  hasSquad: boolean;
+  onCreate: () => void;
+  onDismiss: () => void;
+};
 
-const makeStyles = (c: ThemeColors) => StyleSheet.create({
-  container: {
-    backgroundColor: "#FFF5F8", // Light pink background
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 24,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E91E63",
-  },
-  icon: { fontSize: 32, marginBottom: 12 },
-  title: { fontSize: 18, fontWeight: "800", color: "#E91E63", marginBottom: 4 },
-  desc: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 16 },
-  btnRow: { flexDirection: "row", gap: 12 },
-  btn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-  primaryBtn: { backgroundColor: "#E91E63" },
-  primaryText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
-  dismissBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#E91E63" },
-  dismissText: { color: "#E91E63", fontWeight: "700", fontSize: 14 },
-});
-
-export default function FirstPlanPrompt() {
-  const router = useRouter();
-  const { user } = useAuth();
+export default function FirstPlanPrompt({
+  visible,
+  hasSquad,
+  onCreate,
+  onDismiss,
+}: Props) {
   const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-
-  const [visible, setVisible] = useState(false);
-  const [hasSquad, setHasSquad] = useState(false);
-
-  useEffect(() => {
-    const checkPromptStatus = async () => {
-      if (!user) return;
-
-      // Edge Case: User has already created or joined plans → skip prompt
-      const hasPlans = (user.plansCreatedCount || 0) > 0 || (user.plansHosted || 0) > 0 || (user.plansJoined || 0) > 0;
-      if (hasPlans) {
-        setVisible(false);
-        return;
-      }
-
-      // Check 24h dismissal
-      const dismissedAtStr = await AsyncStorage.getItem("first_plan_prompt_dismissed");
-      if (dismissedAtStr) {
-        const dismissedAt = parseInt(dismissedAtStr, 10);
-        if (Date.now() - dismissedAt < DISMISS_DURATION_MS) {
-          setVisible(false);
-          return;
-        }
-      }
-
-      // Check if user has a squad
-      const squadsQ = query(
-        collection(db, "squads"),
-        where("memberUids", "array-contains", user.uid)
-      );
-      const squadsSnap = await getDocs(squadsQ);
-      
-      setHasSquad(!squadsSnap.empty);
-      setVisible(true);
-    };
-
-    checkPromptStatus();
-  }, [user]);
-
-  const handleDismiss = async () => {
-    setVisible(false);
-    await AsyncStorage.setItem("first_plan_prompt_dismissed", Date.now().toString());
-  };
-
   if (!visible) return null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.icon}>{hasSquad ? "🚀" : "👥"}</Text>
-      <Text style={styles.title}>
-        {hasSquad ? "Create your first Plan!" : "Create a Squad first"}
-      </Text>
-      <Text style={styles.desc}>
-        {hasSquad
-          ? "Experience Harbor by creating a plan. We've pre-filled a template to get you started in seconds."
-          : "You need a squad to plan with. Create a squad of friends to get started."}
-      </Text>
-
-      <View style={styles.btnRow}>
-        <TouchableOpacity style={[styles.btn, styles.dismissBtn]} onPress={handleDismiss}>
-          <Text style={styles.dismissText}>Later</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.btn, styles.primaryBtn]}
-          onPress={() => {
-            if (hasSquad) {
-              // Route to plan creation with preset
-              router.push("/plan/create?preset=first_plan" as any);
-            } else {
-              // Route to squad creation
-              router.push("/squad/create" as any);
-            }
-          }}
-        >
-          <Text style={styles.primaryText}>
-            {hasSquad ? "3-Tap Create" : "Create Squad"}
-          </Text>
-        </TouchableOpacity>
+    <View
+      style={[
+        styles.wrapper,
+        {
+          backgroundColor: colors.primary + '14',
+          borderColor: colors.primary + '33',
+        },
+      ]}
+      // ✅ Focus Trapping Edge Case: Tell iOS VoiceOver to trap focus here
+      accessibilityViewIsModal={true}
+      importantForAccessibility="yes"
+    >
+      <View style={[styles.iconCircle, { backgroundColor: colors.primary + '22' }]}>
+        <Ionicons
+          name={hasSquad ? 'calendar-outline' : 'people'}
+          size={16}
+          color={colors.primary}
+        />
       </View>
+
+      <View style={styles.copy}>
+        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+          {hasSquad ? 'Create your first Plan' : 'Create a Squad first'}
+        </Text>
+        <Text
+          style={[styles.subtitle, { color: colors.textSecondary }]}
+          numberOfLines={1}
+        >
+          {hasSquad
+            ? 'Turn your crew into a real meetup.'
+            : 'Meet people who love what you love.'}
+        </Text>
+      </View>
+
+      <Button
+        title={hasSquad ? 'Plan' : 'Squad'}
+        onPress={onCreate}
+        variant="primary"
+        style={styles.cta}
+        textStyle={styles.ctaText}
+      />
+
+      <TouchableOpacity
+        onPress={onDismiss}
+        style={styles.closeBtn}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss banner"
+      >
+        <Ionicons name="close" size={20} color={colors.textMuted} />
+      </TouchableOpacity>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.xl,
+    marginHorizontal: Spacing.xl,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+    borderRadius: Spacing.md,
+    borderWidth: 1,
+    minHeight: 60, 
+  },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+  },
+  copy: { flex: 1, justifyContent: 'center' },
+  title: { ...Typography.subhead, fontWeight: '700' },
+  subtitle: { ...Typography.caption, marginTop: 2 },
+  cta: {
+    height: 36, 
+    minHeight: 36, 
+    paddingHorizontal: Spacing.md,
+    marginLeft: Spacing.sm,
+    borderRadius: Spacing.xs,
+  },
+  ctaText: {
+    ...Typography.caption,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

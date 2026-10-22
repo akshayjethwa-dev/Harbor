@@ -1,3 +1,4 @@
+// app/squad/create.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -9,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -17,6 +17,11 @@ import { useAuth } from "../../src/context/AuthContext";
 import { createSquad } from "../../src/services/squadService";
 import { EMPTY_SQUAD_DRAFT, DAY_NAMES } from "../../src/types/squad";
 import { ACTIVITIES, CITIES } from "../../src/constants/activities";
+import { markSquadCreated } from "../../src/lib/onboarding"; 
+import { announce } from "../../src/lib/a11y"; // ✅ A11y utility
+
+import Button from "../../src/components/common/Button";
+import { Spacing, Typography } from "../../src/constants/theme";
 
 export default function CreateSquadScreen() {
   const router = useRouter();
@@ -72,9 +77,16 @@ export default function CreateSquadScreen() {
     setSaving(true);
     try {
       const squadId = await createSquad(user, draft);
+      await markSquadCreated(); 
+      
+      // ✅ Announce success to screen readers
+      announce("Squad created successfully");
+      
       router.replace({ pathname: "/squad/[id]", params: { id: squadId } });
     } catch (e: any) {
       Alert.alert("Could not create Squad", e.message ?? "Try again.");
+      // ✅ Announce error to screen readers
+      announce("Failed to create squad. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -87,7 +99,12 @@ export default function CreateSquadScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity 
+            onPress={() => router.back()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
             <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>New Squad</Text>
@@ -106,6 +123,7 @@ export default function CreateSquadScreen() {
             value={draft.name}
             onChangeText={(t) => update({ name: t })}
             maxLength={40}
+            accessibilityLabel="Squad name"
           />
 
           <Text style={styles.label}>Description (optional)</Text>
@@ -118,6 +136,7 @@ export default function CreateSquadScreen() {
             multiline
             maxLength={200}
             textAlignVertical="top"
+            accessibilityLabel="Description"
           />
 
           <Text style={styles.label}>Activity</Text>
@@ -129,6 +148,9 @@ export default function CreateSquadScreen() {
                   key={a.value}
                   style={[styles.activityCard, selected && styles.activityCardActive]}
                   onPress={() => update({ activity: a.value })}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Activity: ${a.label}`}
                 >
                   <Text style={styles.activityEmoji}>{a.emoji}</Text>
                   <Text
@@ -154,6 +176,7 @@ export default function CreateSquadScreen() {
                 value={draft.activityCustom}
                 onChangeText={(t) => update({ activityCustom: t })}
                 maxLength={30}
+                accessibilityLabel="Custom activity description"
               />
             </>
           )}
@@ -162,6 +185,8 @@ export default function CreateSquadScreen() {
           <TouchableOpacity
             style={styles.input}
             onPress={() => setShowCityList(!showCityList)}
+            accessibilityRole="button"
+            accessibilityLabel="Select city"
           >
             <Text style={draft.city ? styles.inputText : styles.placeholderText}>
               {draft.city || "Select city"}
@@ -176,6 +201,7 @@ export default function CreateSquadScreen() {
                 value={citySearch}
                 onChangeText={setCitySearch}
                 autoFocus
+                accessibilityLabel="Search cities"
               />
               {filteredCities.map((c) => (
                 <TouchableOpacity
@@ -186,6 +212,8 @@ export default function CreateSquadScreen() {
                     setShowCityList(false);
                     setCitySearch("");
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${c}`}
                 >
                   <Text style={styles.cityText}>{c}</Text>
                 </TouchableOpacity>
@@ -203,6 +231,9 @@ export default function CreateSquadScreen() {
           <TouchableOpacity
             style={styles.toggleRow}
             onPress={() => update({ recurringEnabled: !draft.recurringEnabled })}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: draft.recurringEnabled }}
+            accessibilityLabel="Enable recurring schedule"
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.toggleLabel}>Enable recurring</Text>
@@ -231,6 +262,9 @@ export default function CreateSquadScreen() {
                       draft.recurringDayOfWeek === i && styles.dayChipActive,
                     ]}
                     onPress={() => update({ recurringDayOfWeek: i })}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: draft.recurringDayOfWeek === i }}
+                    accessibilityLabel={`Day: ${d}`}
                   >
                     <Text
                       style={[
@@ -252,23 +286,20 @@ export default function CreateSquadScreen() {
                 value={draft.recurringTime}
                 onChangeText={(t) => update({ recurringTime: t })}
                 keyboardType="numbers-and-punctuation"
+                accessibilityLabel="Time in hours and minutes"
               />
             </>
           )}
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.createBtn, saving && { opacity: 0.6 }]}
+          <Button
+            title="Create Squad"
             onPress={handleCreate}
+            loading={saving}
             disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.createText}>Create Squad</Text>
-            )}
-          </TouchableOpacity>
+            style={styles.createBtn}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -281,78 +312,79 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
   },
   closeText: { fontSize: 20, color: "#666", fontWeight: "600" },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#1A1A1A" },
-  scroll: { padding: 24, paddingBottom: 40 },
+  headerTitle: { ...Typography.headline, color: "#1A1A1A" },
+  scroll: { padding: Spacing.xl, paddingBottom: Spacing.xxxl },
   label: {
-    fontSize: 14,
+    ...Typography.subhead,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 8,
-    marginTop: 16,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.lg,
   },
   input: {
     borderWidth: 1.5,
     borderColor: "#E0E0E0",
-    borderRadius: 12,
+    borderRadius: Spacing.sm,
     height: 52,
-    paddingHorizontal: 16,
-    fontSize: 16,
+    paddingHorizontal: Spacing.lg,
+    ...Typography.body,
     backgroundColor: "#FAFAFA",
     color: "#333",
     justifyContent: "center",
   },
-  inputText: { fontSize: 16, color: "#333" },
-  placeholderText: { fontSize: 16, color: "#999" },
-  textArea: { height: 100, paddingTop: 14 },
-  activityGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  inputText: { ...Typography.body, color: "#333" },
+  placeholderText: { ...Typography.body, color: "#999" },
+  textArea: { height: 100, paddingTop: Spacing.md },
+  activityGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   activityCard: {
     width: "31%",
     aspectRatio: 1,
-    borderRadius: 12,
+    borderRadius: Spacing.sm,
     borderWidth: 1.5,
     borderColor: "#E0E0E0",
     backgroundColor: "#FAFAFA",
     justifyContent: "center",
     alignItems: "center",
   },
-  activityCardActive: { borderColor: "#E91E63", backgroundColor: "#FFF0F5" },
+  activityCardActive: { borderColor: "#C2185B", backgroundColor: "#FCE4EC" },
   activityEmoji: { fontSize: 26 },
-  activityLabel: { fontSize: 11, fontWeight: "600", color: "#666", marginTop: 4 },
-  activityLabelActive: { color: "#E91E63" },
+  activityLabel: { ...Typography.caption, fontWeight: "600", color: "#666", marginTop: Spacing.xs },
+  activityLabelActive: { color: "#C2185B" },
   dropdown: {
     backgroundColor: "#FFF",
     borderWidth: 1,
     borderColor: "#E0E0E0",
-    borderRadius: 12,
+    borderRadius: Spacing.sm,
     maxHeight: 180,
-    marginTop: 4,
+    marginTop: Spacing.xs,
   },
   search: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
-    fontSize: 15,
+    ...Typography.body,
   },
-  cityItem: { paddingHorizontal: 16, paddingVertical: 12 },
-  cityText: { fontSize: 15, color: "#333" },
-  divider: { height: 1, backgroundColor: "#F0F0F0", marginVertical: 24 },
-  sectionTitle: { fontSize: 17, fontWeight: "800", color: "#1A1A1A" },
-  sectionDesc: { fontSize: 13, color: "#666", marginTop: 4 },
+  cityItem: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  cityText: { ...Typography.body, color: "#333" },
+  divider: { height: 1, backgroundColor: "#F0F0F0", marginVertical: Spacing.xl },
+  sectionTitle: { ...Typography.title2, color: "#1A1A1A" },
+  sectionDesc: { ...Typography.caption, color: "#666", marginTop: Spacing.xs },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
-    marginTop: 12,
+    paddingVertical: Spacing.lg,
+    marginTop: Spacing.md,
+    minHeight: 48, 
   },
-  toggleLabel: { fontSize: 15, fontWeight: "600", color: "#333" },
-  toggleDesc: { fontSize: 12, color: "#999", marginTop: 2 },
+  toggleLabel: { ...Typography.subhead, fontWeight: "600", color: "#333" },
+  toggleDesc: { ...Typography.caption, color: "#999", marginTop: Spacing.xxs },
   switch: {
     width: 48,
     height: 28,
@@ -361,33 +393,30 @@ const styles = StyleSheet.create({
     padding: 2,
     justifyContent: "center",
   },
-  switchOn: { backgroundColor: "#E91E63" },
+  switchOn: { backgroundColor: "#C2185B" },
   knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#FFF" },
   knobOn: { alignSelf: "flex-end" },
-  dayRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  dayRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   dayChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: "#E0E0E0",
     backgroundColor: "#FAFAFA",
+    minHeight: 44,
+    justifyContent: "center",
   },
-  dayChipActive: { borderColor: "#E91E63", backgroundColor: "#FFF0F5" },
-  dayText: { fontSize: 12, fontWeight: "700", color: "#666" },
-  dayTextActive: { color: "#E91E63" },
+  dayChipActive: { borderColor: "#C2185B", backgroundColor: "#FCE4EC" },
+  dayText: { ...Typography.caption, fontWeight: "700", color: "#666" },
+  dayTextActive: { color: "#C2185B" },
   footer: {
-    padding: 16,
+    padding: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
     backgroundColor: "#FFF",
   },
   createBtn: {
-    height: 54,
-    backgroundColor: "#E91E63",
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
+    width: "100%",
   },
-  createText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
 });
