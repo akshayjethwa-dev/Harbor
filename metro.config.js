@@ -12,7 +12,7 @@ const config = getDefaultConfig(__dirname);
 if (!config.resolver.sourceExts.includes('cjs')) {
   config.resolver.sourceExts.push('cjs');
 }
-config.resolver.unstable_enablePackageExports = false;
+config.resolver.unstable_enablePackageExports = true;
 // ---------------------------------------------------------------------------
 
 // Keep your existing custom resolver (web stub for react-native-maps).
@@ -27,6 +27,19 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       filePath: path.resolve(__dirname, 'src/lib/react-native-maps.web.js'),
     };
   }
+
+  // --- Radix UI Fix --------------------------------------------------------
+  // Radix UI's package exports don't always play nicely with Metro when 
+  // `unstable_enablePackageExports` is true. This forces Metro to look at 
+  // the main entry point of `@radix-ui/primitive` where `IS_DEVELOPMENT` 
+  // is actually exported.
+  if (moduleName === '@radix-ui/primitive/is-development') {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(__dirname, 'node_modules/@radix-ui/primitive/dist/index.js'),
+    };
+  }
+  // -------------------------------------------------------------------------
 
   // Fallback to default resolution.
   if (originalResolveRequest) {
