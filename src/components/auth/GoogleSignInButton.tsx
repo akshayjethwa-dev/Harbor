@@ -1,3 +1,4 @@
+// src/components/auth/GoogleSignInButton.tsx
 import React, { useState, useEffect } from "react";
 import {
   TouchableOpacity,
@@ -15,6 +16,8 @@ import { signInWithGoogle, signInWithGoogleWeb } from "../../services/authServic
 WebBrowser.maybeCompleteAuthSession();
 
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
+const ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID ?? "";
+const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_IOS_GOOGLE_CLIENT_ID ?? "";
 
 export default function GoogleSignInButton() {
   const router = useRouter();
@@ -23,6 +26,8 @@ export default function GoogleSignInButton() {
   // Native hook — only used on iOS/Android. On web we won't call promptAsync.
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId: WEB_CLIENT_ID,
+    androidClientId: ANDROID_CLIENT_ID,
+    iosClientId: IOS_CLIENT_ID,
   });
 
   // Handle native response
@@ -67,7 +72,6 @@ export default function GoogleSignInButton() {
       Alert.alert("Error", result.error ?? "Google sign-in failed");
       return;
     }
-
     if (result.needsPhone) {
       Alert.alert(
         "Phone Required",
@@ -76,7 +80,6 @@ export default function GoogleSignInButton() {
       );
       return;
     }
-
     if (result.user.profileComplete) {
       router.replace("/(tabs)/crews");
     } else {
@@ -101,7 +104,7 @@ export default function GoogleSignInButton() {
       disabled={disabled}
     >
       {loading ? (
-        <ActivityIndicator color="#333" />
+        <ActivityIndicator size="small" color="#4285F4" />
       ) : (
         <>
           <Text style={styles.googleIcon}>G</Text>

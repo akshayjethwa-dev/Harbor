@@ -1,185 +1,258 @@
-import React, { useEffect, useRef, useState } from "react";
+// src/components/chat/VoiceRecorder.tsx
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Platform,
-} from "react-native";
-import { Audio } from "expo-av";
+  View,
+} from 'react-native';
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 
 const MAX_DURATION_MS = 60 * 1000; // 60s
 
-interface Props {
-  onSend: (uri: string, durationMs: number) => Promise<void>;
-  onCancel: () => void;
-}
+export type VoiceRecorderResult = {
+  uri: string;
+  durationMs: number;
+};
+
+type Props = {
+  onSend: (result: VoiceRecorderResult) => void;
+  onCancel?: () => void;
+};
 
 export default function VoiceRecorder({ onSend, onCancel }: Props) {
-  const [recording, setRecording] = useState(false);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
+  const [recordedUri, setRecordedUri] = useState<string | null>(null);
+  const [recordedDuration, setRecordedDuration] = useState(0);
+  const [isPreparing, setIsPreparing] = useState(false);
 
+  // Player is created lazily once we have a URI
+  const player = useAudioPlayer(recordedUri ?? '');
+  const playerStatus = useAudioPlayerStatus(player);
+  const autoStopTriggered = useRef(false);
+
+  // 1. Ask for mic permission on mount
   useEffect(() => {
     (async () => {
-      const perm = await Audio.requestPermissionsAsync();
-      setPermissionGranted(perm.status === "granted");
-      if (perm.status !== "granted") {
-        Alert.alert(
-          "Microphone access required",
-          "Enable microphone access in settings to record voice messages."
-        );
-        onCancel();
-      }
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      setPermissionGranted(granted);
     })();
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
   }, []);
 
-  const start = async () => {
+  // 2. Auto-stop when max duration is reached
+  useEffect(() => {
+    if (
+      recorderState.isRecording &&
+      recorderState.durationMillis >= MAX_DURATION_MS &&
+      !autoStopTriggered.current
+    ) {
+      autoStopTriggered.current = true;
+      void stopRecording();
+    }
+  }, [recorderState.durationMillis, recorderState.isRecording]);
+
+  const startRecording = useCallback(async () => {
     if (!permissionGranted) return;
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      setIsPreparing(true);
+      autoStopTriggered.current = false;
+      setRecordedUri(null);
+      setRecordedDuration(0);
+
+      // iOS needs allowsRecording=true to record at all
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await rec.startAsync();
-      recordingRef.current = rec;
-      setRecording(true);
-      setElapsedMs(0);
-      timerRef.current = setInterval(() => {
-        setElapsedMs((ms) => {
-          const next = ms + 100;
-          if (next >= MAX_DURATION_MS) {
-            stopAndSend();
-            return MAX_DURATION_MS;
-          }
-          return next;
-        });
-      }, 100);
-    } catch (e: any) {
-      Alert.alert("Could not start recording", e.message);
-      onCancel();
-    }
-  };
 
-  const stopAndSend = async () => {
-    if (!recordingRef.current) return;
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch (e) {
+      console.warn('[VoiceRecorder] startRecording failed', e);
+    } finally {
+      setIsPreparing(false);
+    }
+  }, [permissionGranted, recorder]);
+
+  const stopRecording = useCallback(async () => {
+    if (!recorderState.isRecording) return;
     try {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+      const durationMs = recorderState.durationMillis;
+      await recorder.stop();
+      // After stop, allow playback through the speaker
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+      if (recorder.uri) {
+        setRecordedUri(recorder.uri);
+        setRecordedDuration(durationMs);
       }
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
-      setRecording(false);
-      if (uri) {
-        await onSend(uri, elapsedMs);
-      }
-    } catch (e: any) {
-      Alert.alert("Send failed", e.message);
+    } catch (e) {
+      console.warn('[VoiceRecorder] stopRecording failed', e);
     }
+  }, [recorder, recorderState.durationMillis, recorderState.isRecording]);
+
+  const reset = useCallback(() => {
+    try {
+      player.pause();
+      player.seekTo(0);
+    } catch {}
+    setRecordedUri(null);
+    setRecordedDuration(0);
+  }, [player]);
+
+  const handleSend = useCallback(() => {
+    if (!recordedUri) return;
+    onSend({ uri: recordedUri, durationMs: recordedDuration });
+    reset();
+  }, [recordedUri, recordedDuration, onSend, reset]);
+
+  const handleCancel = useCallback(() => {
+    reset();
+    onCancel?.();
+  }, [reset, onCancel]);
+
+  const formatMs = (ms: number) => {
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60).toString().padStart(2, '0');
+    const s = (total % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
   };
 
-  const cancel = async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (recordingRef.current) {
-      try {
-        await recordingRef.current.stopAndUnloadAsync();
-      } catch {
-        // ignore
-      }
-      recordingRef.current = null;
-    }
-    setRecording(false);
-    onCancel();
-  };
+  // --- Render states ---
 
-  // Auto-start on mount
-  useEffect(() => {
-    if (permissionGranted && !recording) {
-      start();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permissionGranted]);
-
-  const secs = Math.floor(elapsedMs / 1000);
-  const pct = Math.min(1, elapsedMs / MAX_DURATION_MS);
-
-  return (
-    <View style={styles.bar}>
-      <TouchableOpacity onPress={cancel} style={styles.cancelBtn}>
-        <Text style={styles.cancelText}>✕</Text>
-      </TouchableOpacity>
-
-      <View style={styles.trackWrap}>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${pct * 100}%` }]} />
-        </View>
-        <Text style={styles.timer}>
-          {recording ? `● Recording ${secs}s / 60s` : "Preparing…"}
-        </Text>
+  if (permissionGranted === null) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
       </View>
+    );
+  }
 
+  if (permissionGranted === false) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.text}>Microphone permission is required.</Text>
+      </View>
+    );
+  }
+
+  // Preview state: recording finished, user can play / send / cancel
+  if (recordedUri) {
+    const isPlaying = playerStatus.playing;
+    const playDuration = playerStatus.duration || recordedDuration / 1000;
+    const playPosition = playerStatus.currentTime || 0;
+
+    return (
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            if (isPlaying) {
+              player.pause();
+            } else {
+              if (playerStatus.currentTime >= playerStatus.duration) {
+                player.seekTo(0);
+              }
+              player.play();
+            }
+          }}
+        >
+          <Text style={styles.iconText}>{isPlaying ? '⏸' : '▶'}</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.text}>
+          {formatMs(playPosition * 1000)} / {formatMs(playDuration * 1000)}
+        </Text>
+
+        <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
+          <Text style={styles.sendText}>Send</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Recording state
+  return (
+    <View style={styles.row}>
       <TouchableOpacity
-        onPress={stopAndSend}
-        style={styles.sendBtn}
-        disabled={!recording}
+        style={[styles.recordBtn, recorderState.isRecording && styles.recordBtnActive]}
+        onPress={recorderState.isRecording ? stopRecording : startRecording}
+        disabled={isPreparing}
       >
-        <Text style={styles.sendIcon}>▶</Text>
+        {isPreparing ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.recordText}>
+            {recorderState.isRecording
+              ? `Stop  ${formatMs(recorderState.durationMillis)}`
+              : 'Record'}
+          </Text>
+        )}
       </TouchableOpacity>
+
+      {recorderState.isRecording && (
+        <Text style={styles.text}>
+          {formatMs(MAX_DURATION_MS - recorderState.durationMillis)} left
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#FFF5F8",
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+  center: { alignItems: 'center', justifyContent: 'center', padding: 16 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  cancelBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F0F0F0",
-    justifyContent: "center",
-    alignItems: "center",
+  text: { fontSize: 14, color: '#333', fontVariant: ['tabular-nums'] },
+  recordBtn: {
+    backgroundColor: '#2E7D32',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    minWidth: 96,
+    alignItems: 'center',
   },
-  cancelText: { fontSize: 16, fontWeight: "700", color: "#666" },
-  trackWrap: { flex: 1 },
-  progressTrack: {
-    height: 6,
-    backgroundColor: "#F0F0F0",
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 6,
+  recordBtnActive: { backgroundColor: '#C62828' },
+  recordText: { color: '#fff', fontWeight: '600' },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eee',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  progressFill: { height: "100%", backgroundColor: "#E91E63" },
-  timer: { fontSize: 11, color: "#666", fontWeight: "600" },
+  iconText: { fontSize: 18 },
+  cancelBtn: { paddingHorizontal: 12, paddingVertical: 8 },
+  cancelText: { color: '#666' },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#E91E63",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#1565C0',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
   },
-  sendIcon: { color: "#FFF", fontSize: 16, marginLeft: 3 },
+  sendText: { color: '#fff', fontWeight: '600' },
 });

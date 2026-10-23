@@ -1,6 +1,12 @@
 // src/services/monetizationService.ts
 import { db } from "../lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { 
+  doc, 
+  onSnapshot, 
+  collection, 
+  addDoc, 
+  serverTimestamp 
+} from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import app from "../lib/firebase"; // <-- Import the default app export
 import { Subscription, SubscriptionTier } from "../types/subscription";
@@ -59,4 +65,22 @@ export function isInGracePeriod(sub: Subscription): boolean {
   if (sub.status !== "past_due" || !sub.gracePeriodEndsAt) return false;
   const graceEnd = sub.gracePeriodEndsAt.toMillis?.() ?? new Date(sub.gracePeriodEndsAt).getTime();
   return Date.now() < graceEnd;
+}
+
+/**
+ * Submit a new vendor application.
+ * This fixes the error in app/vendor/onboarding.tsx
+ */
+export async function submitVendorApplication(applicationData: any): Promise<void> {
+  try {
+    // Creates a new document in the "vendorApplications" collection
+    await addDoc(collection(db, "vendorApplications"), {
+      ...applicationData,
+      status: "pending", // Default status for new applications
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error submitting vendor application:", error);
+    throw error;
+  }
 }

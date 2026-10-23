@@ -1,8 +1,16 @@
 // src/config/firebase.ts
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import * as FirebaseAuth from 'firebase/auth';
+import {
+  initializeAuth,
+  getAuth,
+  // @ts-ignore: getReactNativePersistence exists in the RN runtime bundle,
+  // but is missing from Firebase SDK public TS types (known limitation).
+  getReactNativePersistence,
+  type Auth,
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 /**
@@ -21,7 +29,7 @@ const appId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
 export const isFirebaseConfigured = Boolean(apiKey && projectId && authDomain);
 
 let app: ReturnType<typeof initializeApp> | null = null;
-let auth: FirebaseAuth.Auth | null = null;
+let auth: Auth | null = null;
 let db: ReturnType<typeof getFirestore> | null = null;
 let storage: ReturnType<typeof getStorage> | null = null;
 
@@ -42,29 +50,29 @@ if (isFirebaseConfigured) {
 
     // ---- Auth with platform-specific persistence ----
     if (Platform.OS === 'web') {
-      // Web: use default persistence
-      auth = FirebaseAuth.getAuth(app);
+      // Web: default persistence (IndexedDB / localStorage).
+      auth = getAuth(app);
     } else {
-      // Native (Android/iOS): use AsyncStorage persistence so the
-      // login session survives app restarts.
-      const getRNPersistence: any = (FirebaseAuth as any).getReactNativePersistence;
-      if (getRNPersistence) {
-        try {
-          // Lazy require so this file doesn't hard-fail if the package
-          // isn't installed yet.
-          const AsyncStorage =
-            require('@react-native-async-storage/async-storage').default;
-          auth = FirebaseAuth.initializeAuth(app, {
-            persistence: getRNPersistence(AsyncStorage),
-          });
-        } catch (e) {
-          // initializeAuth throws if auth was already initialized
-          // (e.g. from a fast-refresh). Fall back to getAuth.
-          auth = FirebaseAuth.getAuth(app);
+      // Native (Android/iOS): initializeAuth + AsyncStorage persistence so
+      // the login session survives app restarts.
+      try {
+        auth = initializeAuth(app, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      } catch (e: any) {
+        // Fast Refresh / hot reload: auth may already be initialized.
+        // Only swallow the "already-initialized" case; rethrow anything else
+        // so real config problems don't get hidden.
+        const msg: string = e?.message ?? '';
+        if (
+          e?.code === 'auth/already-initialized' ||
+          msg.toLowerCase().includes('already-initialized') ||
+          msg.toLowerCase().includes('already initialized')
+        ) {
+          auth = getAuth(app);
+        } else {
+          throw e;
         }
-      } else {
-        // Older/newer Firebase versions without getReactNativePersistence
-        auth = FirebaseAuth.getAuth(app);
       }
     }
   } catch (err) {

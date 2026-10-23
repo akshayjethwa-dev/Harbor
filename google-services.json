@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "490755900218",
+    "project_id": "garbacrew",
+    "storage_bucket": "garbacrew.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:490755900218:android:199d44857b3f9f23c6c603",
+        "android_client_info": {
+          "package_name": "com.kithra.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "490755900218-f0prm0ugk872u5khso67946ndu7e4q2m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwhk82LwaOv51JTrggAfM8d9ThNoE3UEg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "490755900218-f0prm0ugk872u5khso67946ndu7e4q2m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "490755900218-qstjmqfobta10uhbheiqfkfnd6fomvto.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.garbacrew.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
