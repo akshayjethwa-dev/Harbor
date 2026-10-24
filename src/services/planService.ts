@@ -75,7 +75,7 @@ export async function createPlan(
     capacity: draft.capacity,
     costTotal: draft.costTotal,
     costPerPerson,
-    requiresWaiver: draft.requiresWaiver || false, 
+    requiresWaiver: draft.requiresWaiver || false,
 
     requirements: draft.requirements,
     approvalMode: draft.approvalMode,

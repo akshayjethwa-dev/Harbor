@@ -9,7 +9,7 @@ import {
   Alert,
   Image,
   TextInput,
-  Modal,
+  Platform, // <-- Added for Web alert handling
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -37,22 +37,15 @@ import CheckInButton from "../../src/components/plan/CheckInButton";
 import SaveAsTemplateButton from "../../src/components/plan/SaveAsTemplateButton";
 import { planShareUrl } from "../../src/services/shareService";
 import { Ionicons } from "@expo/vector-icons";
-// ─── Task 2 & 3: Date Polls & Heatmap ───
 import DatePollCard from "../../src/components/poll/DatePollCard";
 import { getUserProfile } from "../../src/services/userService";
-// ─── Task 24: Presence ───
 import PresenceBar from "../../src/components/plan/PresenceBar";
 import { usePresence } from "../../src/hooks/usePresence";
-// ─── Task 34: Edit Settings ───
 import EditPlanSettingsModal from "../../src/components/plan/EditPlanSettingsModal";
-// ─── Task 36: No-Show Tracking ───
 import MarkAttendanceModal from "../../src/components/plan/MarkAttendanceModal";
 import { disputeNoShow } from "../../src/services/attendanceService";
-// ─── Task 37: Fake Profile Detection ───
 import ReportProfileModal from "../../src/components/profile/ReportProfileModal";
-// ─── Task 48: Contextual Tip ───
 import ContextualTip from "../../src/components/onboarding/ContextualTip";
-// ─── Task 50: Invite Prompt ───
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import InvitePromptModal from "../../src/components/referral/InvitePromptModal";
 
@@ -81,24 +74,38 @@ export default function PlanDetailScreen() {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [showQR, setShowQR] = useState(false);
-  
-  // ─── Task 3: Heatmap state ───
   const [organizerRanges, setOrganizerRanges] = useState<TimeBlockRanges | undefined>();
 
-  // ─── Task 24: Presence Hook ───
   const { viewers } = usePresence(id);
 
-  // ─── Task 34: Settings Modal ───
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-
-  // ─── Task 36: Attendance Modal ───
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
-
-  // ─── Task 37: Report Profile Modal ───
   const [reportTarget, setReportTarget] = useState<PlanParticipant | null>(null);
-
-  // ─── Task 50: Invite Prompt State ───
   const [showInvitePrompt, setShowInvitePrompt] = useState(false);
+
+  // ─────────────────────────────────────────────────────────
+  // Web-Compatible Alert Helper
+  // ─────────────────────────────────────────────────────────
+  const showAlert = (title: string, message: string, buttons?: any[]) => {
+    if (Platform.OS === "web") {
+      if (buttons && buttons.length > 1) {
+        const confirmed = window.confirm(`${title}\n\n${message}`);
+        if (confirmed) {
+          const confirmBtn = buttons.find(
+            (b) => b.style === "destructive" || b.text === "Leave" || b.text === "Decline" || b.text === "Send request" || b.text === "Dispute"
+          );
+          if (confirmBtn && confirmBtn.onPress) confirmBtn.onPress();
+        }
+      } else {
+        window.alert(`${title}\n\n${message}`);
+        if (buttons && buttons.length > 0 && buttons[0].onPress) {
+          buttons[0].onPress();
+        }
+      }
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  };
 
   // Live subscription to plan
   useEffect(() => {
@@ -121,7 +128,7 @@ export default function PlanDetailScreen() {
     return () => unsub();
   }, [id]);
 
-  // ─── Task 3: Fetch organizer's custom time block ranges ───
+  // Fetch organizer's custom time block ranges
   useEffect(() => {
     if (!plan?.hostUid) return;
     getUserProfile(plan.hostUid)
@@ -133,37 +140,37 @@ export default function PlanDetailScreen() {
       .catch((err) => console.warn("Could not load organizer ranges:", err));
   }, [plan?.hostUid]);
 
-  // ─── Task 50: Trigger Invite Prompt Logic ───
+  // Invite prompt logic
   useEffect(() => {
     const checkInvitePrompt = async () => {
       if (!user || !plan) return;
-
-      // 1. Must be the host of this plan
       if (user.uid !== plan.hostUid) return;
-
-      // 2. Must be their first plan (assuming createPlan increments plansCreatedCount)
       const isFirstPlan = (user.plansCreatedCount || 0) === 1;
       if (!isFirstPlan) return;
 
-      // 3. Check 7-day dismissal window
       const dismissedAtStr = await AsyncStorage.getItem("invite_prompt_dismissed_at");
       if (dismissedAtStr) {
         const dismissedAt = parseInt(dismissedAtStr, 10);
         const sevenDays = 7 * 24 * 60 * 60 * 1000;
         if (Date.now() - dismissedAt < sevenDays) return;
       }
-
-      // 4. Show the prompt after a slight delay to let the screen render
       setTimeout(() => setShowInvitePrompt(true), 1500);
     };
-
     checkInvitePrompt();
   }, [user, plan]);
 
   useFocusEffect(useCallback(() => {}, []));
 
   const handlePrimaryAction = async () => {
-    if (!plan || !user) return;
+    if (!plan) return;
+    if (!user) {
+      showAlert(
+        "Sign in required",
+        "Please sign in to join or interact with this plan."
+      );
+      return;
+    }
+
     const role = getPlanRole(plan, user.uid);
 
     if (role === "host") {
@@ -175,7 +182,7 @@ export default function PlanDetailScreen() {
     }
 
     if (role === "participant") {
-      Alert.alert(
+      showAlert(
         "Leave Plan?",
         "You'll be removed from the Plan and its chat. Your Trust Balance escrow will be returned.",
         [
@@ -188,7 +195,12 @@ export default function PlanDetailScreen() {
               try {
                 await leavePlan(plan.id);
               } catch (e: any) {
-                Alert.alert("Could not leave", e.message);
+                const code = e?.code ?? "unknown";
+                console.error("[leavePlan] failed:", code, e?.message, e);
+                showAlert(
+                  "Could not leave",
+                  `${e?.message ?? "Please try again."}\n\n(code: ${code})`
+                );
               } finally {
                 setActing(false);
               }
@@ -200,7 +212,7 @@ export default function PlanDetailScreen() {
     }
 
     if (role === "pending") {
-      Alert.alert("Cancel request?", "You'll withdraw your join request.", [
+      showAlert("Cancel request?", "You'll withdraw your join request.", [
         { text: "Keep", style: "cancel" },
         {
           text: "Cancel request",
@@ -210,7 +222,12 @@ export default function PlanDetailScreen() {
             try {
               await leavePlan(plan.id);
             } catch (e: any) {
-              Alert.alert("Error", e.message);
+              const code = e?.code ?? "unknown";
+              console.error("[leavePlan/pending] failed:", code, e?.message, e);
+              showAlert(
+                "Error",
+                `${e?.message ?? "Please try again."}\n\n(code: ${code})`
+              );
             } finally {
               setActing(false);
             }
@@ -222,10 +239,7 @@ export default function PlanDetailScreen() {
 
     const check = checkRequirements(plan, user);
     if (!check.ok) {
-      Alert.alert(
-        "Can't join",
-        check.reason ?? "You don't meet the requirements."
-      );
+      showAlert("Can't join", check.reason ?? "You don't meet the requirements.");
       return;
     }
 
@@ -240,23 +254,34 @@ export default function PlanDetailScreen() {
 
   const performJoin = async (message: string) => {
     if (!plan) return;
+    if (!user) {
+      showAlert("Sign in required", "Please sign in to join this plan.");
+      return;
+    }
+
+    console.log("[joinPlan] start", { planId: plan.id, message });
     setActing(true);
     try {
       const result = await joinPlan(plan.id, message);
+      console.log("[joinPlan] result", result);
       setShowRequestModal(false);
-      if (result.status === "joined") {
-        Alert.alert("You're in! 🎉", "Say hi to the crew in the chat.");
-      } else if (result.status === "requested") {
-        Alert.alert(
-          "Request sent",
-          "The host will review and respond within 48 hours."
-        );
-      } else if (result.status === "waitlisted") {
-        Alert.alert("Waitlisted", "We'll notify you if a spot opens up.");
+
+      if (result?.status === "joined") {
+        showAlert("You're in! 🎉", "Say hi to the crew in the chat.");
+      } else if (result?.status === "requested") {
+        showAlert("Request sent", "The host will review and respond within 48 hours.");
+      } else if (result?.status === "waitlisted") {
+        showAlert("Waitlisted", "We'll notify you if a spot opens up.");
+      } else {
+        showAlert("Done", `Join result: ${result?.status ?? "unknown"}.`);
       }
-      if (result.warning) console.warn("Join warning:", result.warning);
+
+      if (result?.warning) console.warn("Join warning:", result.warning);
     } catch (e: any) {
-      Alert.alert("Could not join", e.message ?? "Try again");
+      const code = e?.code ?? "unknown";
+      const msg = e?.message ?? String(e) ?? "Try again";
+      console.error("[joinPlan] failed:", code, msg, e);
+      showAlert("Could not join", `${msg}\n\n(code: ${code})`);
     } finally {
       setActing(false);
     }
@@ -267,13 +292,18 @@ export default function PlanDetailScreen() {
     try {
       await approveJoinRequest(plan.id, requestUid);
     } catch (e: any) {
-      Alert.alert("Could not approve", e.message);
+      const code = e?.code ?? "unknown";
+      console.error("[approveJoinRequest] failed:", code, e?.message, e);
+      showAlert(
+        "Could not approve",
+        `${e?.message ?? "Try again."}\n\n(code: ${code})`
+      );
     }
   };
 
   const handleDecline = async (requestUid: string) => {
     if (!plan) return;
-    Alert.alert("Decline request?", "This person will not be added.", [
+    showAlert("Decline request?", "This person will not be added.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Decline",
@@ -282,17 +312,21 @@ export default function PlanDetailScreen() {
           try {
             await declineJoinRequest(plan.id, requestUid);
           } catch (e: any) {
-            Alert.alert("Could not decline", e.message);
+            const code = e?.code ?? "unknown";
+            console.error("[declineJoinRequest] failed:", code, e?.message, e);
+            showAlert(
+              "Could not decline",
+              `${e?.message ?? "Try again."}\n\n(code: ${code})`
+            );
           }
         },
       },
     ]);
   };
 
-  // ─── Task 36: Dispute No-Show Handler ───
   const handleDisputeNoShow = () => {
     if (!plan || !user) return;
-    Alert.alert(
+    showAlert(
       "Dispute No-Show",
       "Are you sure you want to dispute this? The organizer will be notified to review your attendance.",
       [
@@ -303,9 +337,9 @@ export default function PlanDetailScreen() {
           onPress: async () => {
             try {
               await disputeNoShow(plan.id, user.uid);
-              Alert.alert("Dispute Sent", "The organizer will review your attendance.");
+              showAlert("Dispute Sent", "The organizer will review your attendance.");
             } catch (e: any) {
-              Alert.alert("Error", e.message);
+              showAlert("Error", e.message);
             }
           },
         },
@@ -344,25 +378,20 @@ export default function PlanDetailScreen() {
       : `${plan.spotsFilled} / ${plan.capacity}`;
   const isFull = plan.capacity > 0 && plan.spotsFilled >= plan.capacity;
 
-  // ─── Task 2: Date poll derived state ───
   const isMemberOfPlan = role === "host" || role === "participant";
   const canVoteInPoll = isMemberOfPlan;
   const showPoll = !!plan.pendingDatePollId;
   const canCreatePoll = role === "host" && !plan.pendingDatePollId;
   const hasDateInProgress = !!plan.pendingDatePollId && plan.dateStatus !== "confirmed";
 
-  // ─── Task 31: Plan Recap derived state ───
-  const hasPlanEnded = plan?.endTime 
+  const hasPlanEnded = plan?.endTime
     ? (plan.endTime.toMillis ? plan.endTime.toMillis() : new Date(plan.endTime).getTime()) < Date.now()
     : false;
 
-  // ─── Task 36: Attendance derived state ───
   const isHost = role === "host";
   const showAttendanceBtn = isHost && hasPlanEnded && !plan.attendanceMarked;
   const isMarkedNoShow = plan.noShowUids?.includes(user?.uid || "");
   const showDisputeBtn = isMarkedNoShow && hasPlanEnded;
-
-  // ─── Task 44: Plan Insights derived state ───
   const showInsightsBtn = isHost && hasPlanEnded && plan.status !== "cancelled";
 
   let cta = "I'm In";
@@ -384,7 +413,6 @@ export default function PlanDetailScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Hero */}
         <View style={[styles.hero, { backgroundColor: act.color + "22" }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Text style={styles.backIcon}>←</Text>
@@ -401,7 +429,6 @@ export default function PlanDetailScreen() {
             <Text style={styles.desc}>{plan.description}</Text>
           ) : null}
 
-          {/* Host */}
           <View style={styles.hostCard}>
             {plan.hostPhotoUrl ? (
               <Image source={{ uri: plan.hostPhotoUrl }} style={styles.avatar} />
@@ -421,26 +448,22 @@ export default function PlanDetailScreen() {
             </View>
           </View>
 
-          {/* Task 34: Edit Settings Button (Host only) */}
           {role === "host" && (
-            <TouchableOpacity 
-              style={styles.editSettingsBtn} 
+            <TouchableOpacity
+              style={styles.editSettingsBtn}
               onPress={() => setShowSettingsModal(true)}
             >
               <Text style={styles.editSettingsText}>⚙️ Edit Plan Settings</Text>
             </TouchableOpacity>
           )}
 
-          {/* ─── Task 24: Presence Bar ─── */}
           <PresenceBar viewers={viewers} />
 
-          {/* Task 48: Contextual Tip */}
-          <ContextualTip 
-            id="date_poll_tip" 
-            text="Tip: Tap here to vote on proposed dates so the organizer knows when you're free!" 
+          <ContextualTip
+            id="date_poll_tip"
+            text="Tip: Tap here to vote on proposed dates so the organizer knows when you're free!"
           />
 
-          {/* ─── Task 2 & 3: Date poll card (with heatmap integration) ─── */}
           {showPoll && (
             <DatePollCard
               pollId={plan.pendingDatePollId!}
@@ -451,7 +474,6 @@ export default function PlanDetailScreen() {
             />
           )}
 
-          {/* ─── Task 2: Create-poll entry point (organizer only) ─── */}
           {canCreatePoll && (
             <TouchableOpacity
               style={styles.pollCreateBtn}
@@ -473,7 +495,6 @@ export default function PlanDetailScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Info rows */}
           <View style={styles.infoBox}>
             <View style={styles.infoRow}>
               <Text style={styles.infoIcon}>🕒</Text>
@@ -521,7 +542,6 @@ export default function PlanDetailScreen() {
             </View>
           </View>
 
-          {/* Requirements */}
           {(plan.requirements.verifiedOnly ||
             plan.requirements.womenOnly ||
             plan.requirements.minGuestScore != null ||
@@ -557,10 +577,8 @@ export default function PlanDetailScreen() {
             </View>
           )}
 
-          {/* Check-in (participants only) */}
           {showParticipantExtras && <CheckInButton plan={plan} />}
 
-          {/* ─── Task 36: Attendance UI ─── */}
           {showAttendanceBtn && (
             <TouchableOpacity
               style={[styles.actionCardBtn, { backgroundColor: "#E3F2FD", borderColor: "#2196F3", marginTop: 8, marginBottom: 16 }]}
@@ -587,11 +605,8 @@ export default function PlanDetailScreen() {
             </TouchableOpacity>
           )}
 
-          {/* ─── Task 6, 12, 19, 22, 23, 30, 31, 44: Action Buttons ─── */}
           {showParticipantExtras && (
             <View style={{ marginBottom: 12 }}>
-              
-              {/* Task 44: Plan Insights */}
               {showInsightsBtn && (
                 <TouchableOpacity
                   style={[styles.actionCardBtn, { backgroundColor: "#E3F2FD", borderColor: "#2196F3", marginBottom: 10 }]}
@@ -605,7 +620,6 @@ export default function PlanDetailScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Activity Feed */}
               <TouchableOpacity
                 style={styles.actionCardBtn}
                 onPress={() => router.push(`/plan/activity/${plan.id}` as any)}
@@ -617,7 +631,6 @@ export default function PlanDetailScreen() {
                 <Text style={styles.actionCardChevron}>›</Text>
               </TouchableOpacity>
 
-              {/* Tasks & To-dos */}
               <TouchableOpacity
                 style={styles.actionCardBtn}
                 onPress={() => router.push(`/plan/tasks/${plan.id}` as any)}
@@ -629,7 +642,6 @@ export default function PlanDetailScreen() {
                 <Text style={styles.actionCardChevron}>›</Text>
               </TouchableOpacity>
 
-              {/* Expenses & Budget */}
               <TouchableOpacity
                 style={styles.actionCardBtn}
                 onPress={() => router.push(`/plan/expenses/${plan.id}` as any)}
@@ -641,7 +653,6 @@ export default function PlanDetailScreen() {
                 <Text style={styles.actionCardChevron}>›</Text>
               </TouchableOpacity>
 
-              {/* Task 30: Album */}
               <TouchableOpacity
                 style={styles.actionCardBtn}
                 onPress={() => router.push(`/plan/album/${plan.id}` as any)}
@@ -653,7 +664,6 @@ export default function PlanDetailScreen() {
                 <Text style={styles.actionCardChevron}>›</Text>
               </TouchableOpacity>
 
-              {/* Ideas & Suggestions */}
               <TouchableOpacity
                 style={styles.actionCardBtn}
                 onPress={() => router.push(`/plan/ideas/${plan.id}` as any)}
@@ -665,7 +675,6 @@ export default function PlanDetailScreen() {
                 <Text style={styles.actionCardChevron}>›</Text>
               </TouchableOpacity>
 
-              {/* Itinerary */}
               <TouchableOpacity
                 style={styles.actionCardBtn}
                 onPress={() => router.push(`/plan/itinerary/${plan.id}` as any)}
@@ -677,7 +686,6 @@ export default function PlanDetailScreen() {
                 <Text style={styles.actionCardChevron}>›</Text>
               </TouchableOpacity>
 
-              {/* Task 31: Plan Recap */}
               {hasPlanEnded && (
                 <TouchableOpacity
                   style={[styles.actionCardBtn, { backgroundColor: "#FFF5F8", borderColor: "#E91E63" }]}
@@ -693,7 +701,6 @@ export default function PlanDetailScreen() {
             </View>
           )}
 
-          {/* Add to calendar + Share */}
           {showParticipantExtras && (
             <View style={styles.extrasRow}>
               <View style={{ flex: 1 }}>
@@ -705,7 +712,6 @@ export default function PlanDetailScreen() {
             </View>
           )}
 
-          {/* QR code */}
           {showParticipantExtras && (
             <TouchableOpacity
               style={styles.qrBtn}
@@ -716,10 +722,8 @@ export default function PlanDetailScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Save as template (host only) */}
           {role === "host" && <SaveAsTemplateButton plan={plan} />}
 
-          {/* Pending requests (host view) */}
           {showApprovals && (
             <View style={styles.requestsSection}>
               <Text style={styles.sectionTitle}>
@@ -736,7 +740,6 @@ export default function PlanDetailScreen() {
             </View>
           )}
 
-          {/* Participants */}
           <Text style={styles.sectionTitle}>
             Who's coming ({plan.participantDetails.length})
           </Text>
@@ -745,8 +748,8 @@ export default function PlanDetailScreen() {
           ) : (
             <View style={styles.avatarRow}>
               {plan.participantDetails.slice(0, 6).map((p) => (
-                <TouchableOpacity 
-                  key={p.uid} 
+                <TouchableOpacity
+                  key={p.uid}
                   style={styles.participantWrap}
                   onPress={() => {
                     if (p.uid !== user?.uid) {
@@ -766,7 +769,6 @@ export default function PlanDetailScreen() {
                       </Text>
                     </View>
                   )}
-                  {/* Small Report Flag for other participants */}
                   {p.uid !== user?.uid && (
                     <View style={styles.reportFlag}>
                       <Ionicons name="flag" size={8} color="#FFF" />
@@ -788,7 +790,6 @@ export default function PlanDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Sticky CTA */}
       <View style={styles.ctaBar}>
         {showInviteBtn && (
           <TouchableOpacity
@@ -822,14 +823,13 @@ export default function PlanDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Request modal */}
-      <Modal visible={showRequestModal} transparent animationType="fade">
+      {/* Replaced Modal with Absolute Overlay for Web Compatibility */}
+      {showRequestModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Request to Join</Text>
             <Text style={styles.modalDesc}>
-              Add an optional message to the host. They'll review within 48
-              hours.
+              Add an optional message to the host. They'll review within 48 hours.
             </Text>
             <TextInput
               style={styles.modalInput}
@@ -861,9 +861,8 @@ export default function PlanDetailScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      )}
 
-      {/* QR modal */}
       <QRCodeModal
         visible={showQR}
         url={planShareUrl(plan.id)}
@@ -871,21 +870,18 @@ export default function PlanDetailScreen() {
         onClose={() => setShowQR(false)}
       />
 
-      {/* Task 34: Edit Settings Modal */}
       <EditPlanSettingsModal
         visible={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         plan={plan}
       />
 
-      {/* Task 36: Mark Attendance Modal */}
       <MarkAttendanceModal
         visible={showAttendanceModal}
         onClose={() => setShowAttendanceModal(false)}
         plan={plan}
       />
 
-      {/* Task 37: Report Profile Modal */}
       {reportTarget && (
         <ReportProfileModal
           visible={!!reportTarget}
@@ -898,10 +894,9 @@ export default function PlanDetailScreen() {
         />
       )}
 
-      {/* Task 50: Invite Prompt Modal */}
-      <InvitePromptModal 
-        visible={showInvitePrompt} 
-        onClose={() => setShowInvitePrompt(false)} 
+      <InvitePromptModal
+        visible={showInvitePrompt}
+        onClose={() => setShowInvitePrompt(false)}
       />
     </SafeAreaView>
   );
@@ -1146,18 +1141,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   backTextAlt: { color: "#FFF", fontWeight: "700", fontSize: 16 },
+  
+  // Updated Modal Styles for Web Compatibility
   modalOverlay: {
-    flex: 1,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
+    zIndex: 9999, // Ensures it renders above everything
   },
   modalContent: {
     backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
     width: "100%",
+    maxWidth: 400, // Prevents it from being too wide on web
   },
   modalTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A1A" },
   modalDesc: { fontSize: 13, color: "#666", marginTop: 6, marginBottom: 16 },

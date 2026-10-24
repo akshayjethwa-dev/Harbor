@@ -41,6 +41,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── FIX: Presence subcollection (used by usePresence hook) ──
+    match /plans/{planId}/presence/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Allow any authed user to read other plan subcollections
+    // (reviews, photos, comments, etc.) — writes disabled
+    match /plans/{planId}/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // ─────────────────────────────────────────────────────────
     // Squads
     // ─────────────────────────────────────────────────────────
@@ -283,15 +296,9 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
     // Admin collections
     // ─────────────────────────────────────────────────────────
-    match /adminAlerts/{alertId} {
-      allow read, write: if false;
-    }
-    match /partnershipInvoices/{invoiceId} {
-      allow read, write: if false;
-    }
-    match /adminUids/{uid} {
-      allow read, write: if false;
-    }
+    match /adminAlerts/{alertId} { allow read, write: if false; }
+    match /partnershipInvoices/{invoiceId} { allow read, write: if false; }
+    match /adminUids/{uid} { allow read, write: if false; }
 
     // ─────────────────────────────────────────────────────────
     // Device Tokens
@@ -391,7 +398,6 @@ service cloud.firestore {
         allow write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // Task 5: Nudges (Read-only for clients, written by Cloud Function)
       match /nudges/{userId} {
         allow read: if request.auth != null;
         allow write: if false;
@@ -399,12 +405,10 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Task 5: Nudge Requests (Trigger queue)
+    // Nudge Requests (Trigger queue)
     // ─────────────────────────────────────────────────────────
     match /nudgeRequests/{requestId} {
-      // Anyone can create a request (CF verifies organizer status)
       allow create: if request.auth != null;
-      // Only the Cloud Function can read/delete (via admin SDK)
       allow read, update, delete: if false;
     }
 
