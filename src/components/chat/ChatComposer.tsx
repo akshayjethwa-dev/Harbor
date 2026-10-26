@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -33,6 +34,7 @@ export default function ChatComposer({ chatId, me, onSent }: ChatComposerProps) 
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [showRecorder, setShowRecorder] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
 
   const handleTextChange = (t: string) => {
     setText(t);
@@ -52,14 +54,25 @@ export default function ChatComposer({ chatId, me, onSent }: ChatComposerProps) 
     }
   };
 
-  const pickImageOrVideo = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert('Permission needed', 'Allow photo access.');
+  const pickImageOrVideo = async (camera: boolean = false) => {
+    setShowAttachMenu(false);
     
-    const res = await ImagePicker.launchImageLibraryAsync({
+    if (camera) {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) return Alert.alert('Permission needed', 'Allow camera access.');
+    } else {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return Alert.alert('Permission needed', 'Allow photo access.');
+    }
+    
+    const options = {
       mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 0.8,
-    });
+    };
+
+    const res = camera 
+      ? await ImagePicker.launchCameraAsync(options)
+      : await ImagePicker.launchImageLibraryAsync(options);
     
     if (res.canceled || !res.assets?.[0]) return;
     setUploading(true);
@@ -76,6 +89,7 @@ export default function ChatComposer({ chatId, me, onSent }: ChatComposerProps) 
   };
 
   const pickDocument = async () => {
+    setShowAttachMenu(false);
     const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
     if (res.canceled || !res.assets?.[0]) return;
     setUploading(true);
@@ -90,6 +104,7 @@ export default function ChatComposer({ chatId, me, onSent }: ChatComposerProps) 
   };
 
   const shareLocation = async () => {
+    setShowAttachMenu(false);
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return Alert.alert('Permission needed', 'Allow location access.');
     setUploading(true);
@@ -114,15 +129,6 @@ export default function ChatComposer({ chatId, me, onSent }: ChatComposerProps) 
     }
   };
 
-  const openAttach = () => {
-    Alert.alert('Share', 'What would you like to send?', [
-      { text: 'Photo / Video', onPress: pickImageOrVideo },
-      { text: 'Document', onPress: pickDocument },
-      { text: 'Location', onPress: shareLocation },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
   if (showRecorder) {
     return (
       <VoiceRecorder
@@ -145,32 +151,81 @@ export default function ChatComposer({ chatId, me, onSent }: ChatComposerProps) 
           <Text style={{ color: '#f43f5e', marginLeft: 8, fontSize: 12 }}>Uploading...</Text>
         </View>
       )}
+      
       <View style={styles.row}>
-        {/* Mic Button */}
-        <TouchableOpacity onPress={() => setShowRecorder(true)} disabled={uploading} style={styles.iconBtn}>
-          <Ionicons name="mic-outline" size={26} color="#4b5563" />
+        {/* Attachment Trigger */}
+        <TouchableOpacity onPress={() => setShowAttachMenu(true)} disabled={uploading} style={styles.attachBtn}>
+          <Ionicons name="add" size={28} color="#6b7280" />
         </TouchableOpacity>
 
-        {/* Camera Button (Opens Attach Menu) */}
-        <TouchableOpacity onPress={openAttach} disabled={uploading} style={styles.iconBtn}>
-          <Ionicons name="camera-outline" size={26} color="#4b5563" />
-        </TouchableOpacity>
+        {/* Input Field with Inline Camera */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={text}
+            onChangeText={handleTextChange}
+            placeholder="Message"
+            placeholderTextColor="#9ca3af"
+            multiline
+          />
+          {!text.trim() && (
+            <TouchableOpacity onPress={() => pickImageOrVideo(true)} style={styles.inlineIconBtn}>
+              <Ionicons name="camera-outline" size={24} color="#6b7280" />
+            </TouchableOpacity>
+          )}
+        </View>
 
-        {/* Text Input */}
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={handleTextChange}
-          placeholder="Message"
-          placeholderTextColor="#9ca3af"
-          multiline
-        />
-
-        {/* Pink Send Button */}
-        <TouchableOpacity onPress={handleSendText} disabled={!text.trim() || uploading} style={[styles.sendBtn, !text.trim() && { opacity: 0.5 }]}>
-          <Text style={styles.sendText}>Send</Text>
-        </TouchableOpacity>
+        {/* Action Button (Mic or Send) */}
+        {text.trim() ? (
+          <TouchableOpacity onPress={handleSendText} disabled={uploading} style={styles.actionBtn}>
+            <Ionicons name="send" size={20} color="#fff" style={{ marginLeft: 2 }} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => setShowRecorder(true)} disabled={uploading} style={styles.actionBtn}>
+            <Ionicons name="mic" size={22} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
+
+      <Modal visible={showAttachMenu} transparent animationType="slide" onRequestClose={() => setShowAttachMenu(false)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowAttachMenu(false)}>
+          <View style={styles.bottomSheet}>
+            <View style={styles.sheetIndicator} />
+            <View style={styles.attachmentGrid}>
+              
+              <TouchableOpacity style={styles.gridItem} onPress={() => pickImageOrVideo(false)}>
+                <View style={[styles.iconCircle, { backgroundColor: '#8b5cf6' }]}>
+                  <Ionicons name="images" size={26} color="#fff" />
+                </View>
+                <Text style={styles.gridLabel}>Gallery</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.gridItem} onPress={() => pickImageOrVideo(true)}>
+                <View style={[styles.iconCircle, { backgroundColor: '#ef4444' }]}>
+                  <Ionicons name="camera" size={26} color="#fff" />
+                </View>
+                <Text style={styles.gridLabel}>Camera</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.gridItem} onPress={pickDocument}>
+                <View style={[styles.iconCircle, { backgroundColor: '#3b82f6' }]}>
+                  <Ionicons name="document-text" size={26} color="#fff" />
+                </View>
+                <Text style={styles.gridLabel}>Document</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.gridItem} onPress={shareLocation}>
+                <View style={[styles.iconCircle, { backgroundColor: '#10b981' }]}>
+                  <Ionicons name="location" size={26} color="#fff" />
+                </View>
+                <Text style={styles.gridLabel}>Location</Text>
+              </TouchableOpacity>
+
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -178,42 +233,107 @@ export default function ChatComposer({ chatId, me, onSent }: ChatComposerProps) 
 const styles = StyleSheet.create({
   row: { 
     flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingHorizontal: 10, 
-    paddingVertical: 8, 
-    backgroundColor: '#fff',
+    alignItems: 'flex-end', 
+    paddingHorizontal: 8, 
+    paddingVertical: 10, 
+    backgroundColor: '#f9fafb',
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6'
+    borderTopColor: '#e5e7eb'
   },
-  iconBtn: { padding: 6 },
-  input: { 
-    flex: 1, 
-    backgroundColor: '#fff', 
+  attachBtn: {
+    padding: 6,
+    marginBottom: 2,
+  },
+  inputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: '#fff',
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    borderRadius: 20, 
-    paddingHorizontal: 16, 
-    paddingVertical: 8, 
-    maxHeight: 100, 
+    paddingLeft: 16,
+    paddingRight: 6,
     marginHorizontal: 8,
-    fontSize: 15,
+    minHeight: 44,
+    maxHeight: 120,
   },
-  sendBtn: { 
-    backgroundColor: '#f43f5e', // Pink theme from your screenshot
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+  input: { 
+    flex: 1, 
+    fontSize: 16,
+    color: '#111827',
+    paddingTop: 12,
+    paddingBottom: 12,
+    minHeight: 44,
   },
-  sendText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+  inlineIconBtn: {
+    padding: 8,
+    marginBottom: 2,
+  },
+  actionBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f43f5e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
   uploadBar: { 
     flexDirection: 'row',
-    padding: 6, 
+    padding: 8, 
     backgroundColor: '#fff1f2', 
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  // Modal Styles
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    paddingTop: 12,
+  },
+  sheetIndicator: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#d1d5db',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  attachmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+  },
+  gridItem: {
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '25%',
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  gridLabel: {
+    fontSize: 13,
+    color: '#4b5563',
+    fontWeight: '500',
   },
 });

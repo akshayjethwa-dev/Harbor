@@ -1,140 +1,129 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
+import React, { useEffect, useState, useRef } from 'react';
+import { 
+  View, 
+  FlatList, 
+  StyleSheet, 
+  TouchableOpacity, 
+  SafeAreaView, 
   ActivityIndicator,
-  TouchableOpacity,
+  Alert
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../../src/lib/firebase';
-import { useAuth } from '../../../src/context/AuthContext';
-import {
-  subscribeToMessages,
-  subscribeToTyping,
-  markChatRead,
-} from '../../../src/services/chatService';
-import { ChatMessage } from '../../../src/types/plan';
-import ChatComposer from '../../../src/components/chat/ChatComposer';
-import MessageBubble from '../../../src/components/chat/MessageBubble';
+import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function PlanChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { user } = useAuth();
-  const planId = id ?? '';
-  const chatId = `plan_${planId}`;
+import { ChatMessage } from '../../../src/types/chat';
+import { subscribeToMessages } from '../../../src/services/chatService';
+// Adjust import path to your AuthContext or User Store as needed
+import { useAuth } from '../../../src/context/AuthContext'; 
+import MessageBubble from '../../../src/components/chat/MessageBubble';
+import ChatComposer from '../../../src/components/chat/ChatComposer';
 
-  const [planTitle, setPlanTitle] = useState('Plan Chat');
+export default function ChatScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const listRef = useRef<FlatList<ChatMessage>>(null);
+  const flatListRef = useRef<FlatList>(null);
+
+  // Retrieve current user from your auth state
+  const { user: me } = useAuth(); 
 
   useEffect(() => {
-    (async () => {
-      if (!planId) return;
-      const snap = await getDoc(doc(db, 'plans', planId));
-      if (snap.exists()) setPlanTitle(snap.data()?.title ?? 'Plan Chat');
-    })();
-  }, [planId]);
-
-  useEffect(() => {
-    if (!chatId) return;
-    const unsub = subscribeToMessages(chatId, (msgs) => {
-      setMessages(msgs);
-      setLoading(false);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
+    if (!id) return;
+    
+    // Subscribe to Firestore messages
+    const unsubscribe = subscribeToMessages(id, (newMessages) => {
+      setMessages(newMessages);
+      if (loading) setLoading(false);
     });
-    return () => unsub();
-  }, [chatId]);
 
-  useEffect(() => {
-    if (!chatId || !user) return;
-    const unsub = subscribeToTyping(chatId, user.uid, setTypingUsers);
-    return () => unsub();
-  }, [chatId, user]);
+    return () => unsubscribe();
+  }, [id]);
 
-  useEffect(() => {
-    if (!chatId || !user) return;
-    markChatRead(chatId, user.uid).catch(() => {});
-  }, [chatId, user, messages.length]);
+  const handleShare = () => {
+    // Implement your share logic
+    Alert.alert("Share", "Share plan link triggered");
+  };
 
-  if (!user) return null;
+  const handleSOS = () => {
+    // Implement your SOS logic
+    Alert.alert("SOS", "Emergency alert triggered!");
+  };
+
+  if (!me) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#f43f5e" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER matching your screenshot */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.headerTitle}>{planTitle}</Text>
-          <Text style={styles.headerSub}>{messages.length} messages</Text>
-        </View>
-      </View>
-
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <View style={styles.body}>
-          {loading ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color="#f43f5e" />
+      {/* 
+        CLEAN NATIVE HEADER 
+        Replaces the bulky solid-background buttons with native icons
+      */}
+      <Stack.Screen 
+        options={{
+          headerTitle: "Chat", // Dynamically set this to your Plan Name
+          headerRight: () => (
+            <View style={styles.headerRight}>
+              <TouchableOpacity onPress={handleShare} style={styles.headerIcon}>
+                <Ionicons name="share-outline" size={24} color="#f43f5e" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSOS} style={styles.headerIcon}>
+                <Ionicons name="warning-outline" size={24} color="#f43f5e" />
+              </TouchableOpacity>
             </View>
-          ) : (
-            <FlatList
-              ref={listRef}
-              data={messages}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <MessageBubble message={item} isOwn={item.fromUid === user.uid} />
-              )}
-              contentContainerStyle={{ paddingVertical: 8 }}
-              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-            />
-          )}
-
-          {typingUsers.length > 0 && (
-            <View style={styles.typingBar}>
-              <Text style={styles.typingText}>{typingUsers.join(', ')} is typing…</Text>
-            </View>
-          )}
+          )
+        }} 
+      />
+      
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#f43f5e" />
         </View>
-
-        <ChatComposer
-          chatId={chatId}
-          me={user}
-          onSent={() => listRef.current?.scrollToEnd({ animated: true })}
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id || Math.random().toString()}
+          renderItem={({ item }) => (
+            <MessageBubble message={item} isOwn={item.fromUid === me.uid} />
+          )}
+          contentContainerStyle={styles.messageList}
+          // Auto-scroll to bottom when new messages arrive
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
-      </KeyboardAvoidingView>
+      )}
+
+      {/* WHATSAPP-STYLE COMPOSER */}
+      <ChatComposer chatId={id} me={me} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
-  body: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: {
+  container: {
+    flex: 1,
+    backgroundColor: '#e5e5e5', // A subtle WhatsApp-like chat background
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    gap: 16,
+    marginRight: 10,
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  headerSub: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  typingBar: { paddingHorizontal: 16, paddingVertical: 4, backgroundColor: '#f3f4f6' },
-  typingText: { fontSize: 12, color: '#6b7280', fontStyle: 'italic' },
+  headerIcon: {
+    padding: 4,
+  },
+  messageList: {
+    paddingVertical: 12,
+  }
 });

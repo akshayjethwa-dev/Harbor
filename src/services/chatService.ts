@@ -1,3 +1,4 @@
+// src/services/chatService.ts
 import {
   collection,
   doc,
@@ -21,7 +22,7 @@ import {
 import { Platform } from "react-native";
 import { db, storage } from "../lib/firebase";
 import { GarbaCrewUser } from "../types/user";
-import { ChatMessage } from "../types/plan";
+import { ChatMessage } from "../types/chat"; // UPDATED IMPORT PATH
 
 // ─────────────────────────────────────────────────────────
 // CONSTANTS
