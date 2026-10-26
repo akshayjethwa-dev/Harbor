@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../../src/lib/firebase";
 import { useAuth } from "../../../src/context/AuthContext";
 import {
@@ -27,6 +27,7 @@ import {
   sendTextMessage,
   sendImageMessage,
   sendVoiceMessage,
+  sendLocationMessage, // NEW IMPORT
   setTyping,
   markChatRead,
 } from "../../../src/services/chatService";
@@ -186,16 +187,14 @@ export default function PlanChatScreen() {
 
       const loc = await Location.getCurrentPositionAsync({});
       
-      await addDoc(collection(db, "chats", chatId, "messages"), {
-        fromUid: user.uid,
-        fromName: user.name || "User",
-        fromPhotoUrl: user.photoUrl || null,
-        type: "location",
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        isLive: false,
-        createdAt: serverTimestamp(),
-      });
+      // Use the new service function
+      await sendLocationMessage(
+        chatId, 
+        user, 
+        loc.coords.latitude, 
+        loc.coords.longitude, 
+        false // defaulting to false (Static Pin). You can pass `true` for live.
+      );
     } catch (e: any) {
       console.error(e);
       Alert.alert("Error", "Could not get your location.");
@@ -203,7 +202,6 @@ export default function PlanChatScreen() {
   };
 
   const handleVoiceSend = async (result: any) => {
-    // FIX 1: Explicit check to satisfy TypeScript's strict null checks
     if (!user) return; 
     
     try {
@@ -225,10 +223,11 @@ export default function PlanChatScreen() {
   if (!user) return null;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // FIX: Using 'height' on Android resolves the keyboard overlap issue
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         {/* Header */}
@@ -266,7 +265,7 @@ export default function PlanChatScreen() {
             onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
             renderItem={({ item }) => {
               const isSystem = item.type === "system";
-              const isMine = item.fromUid === user?.uid; // Added ? to satisfy TS
+              const isMine = item.fromUid === user?.uid;
               
               if (isSystem) {
                 return (
@@ -305,7 +304,6 @@ export default function PlanChatScreen() {
 
                     {/* Render Logic */}
                     {item.type === "voice" && item.voiceUrl ? (
-                      // FIX 2: Using the casted component to bypass the prop typing error
                       <VoiceMessageAny
                         url={item.voiceUrl}
                         durationMs={item.voiceDurationMs ?? 0}
@@ -314,6 +312,8 @@ export default function PlanChatScreen() {
                     ) : item.type === "image" && item.imageUrl ? (
                       <Image source={{ uri: item.imageUrl }} style={styles.image} />
                     ) : item.type === "location" && (item as any).latitude ? (
+                      
+                      /* FIX: Updated Location UI */
                       <TouchableOpacity 
                         style={styles.locationCard}
                         onPress={() => {
@@ -323,13 +323,23 @@ export default function PlanChatScreen() {
                         }}
                       >
                         <View style={styles.locationHeader}>
-                          <Text style={{ fontSize: 20 }}>📍</Text>
-                          <View>
-                            <Text style={styles.locationTitle}>Current Location</Text>
-                            <Text style={styles.locationSub}>Tap to open in Maps</Text>
+                          <Text style={{ fontSize: 24 }}>📍</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.locationTitle}>Shared Location</Text>
+                            <Text style={styles.locationSender}>By: {item.fromName}</Text>
+                            <View style={[
+                              styles.badge, 
+                              (item as any).isLive ? styles.badgeLive : styles.badgeStatic
+                            ]}>
+                              <Text style={styles.badgeText}>
+                                {(item as any).isLive ? "● Live" : "Static Pin"}
+                              </Text>
+                            </View>
                           </View>
                         </View>
+                        <Text style={styles.mapLink}>View on Map →</Text>
                       </TouchableOpacity>
+
                     ) : (
                       <Text style={isMine ? styles.textMine : styles.textTheirs}>
                         {item.text}
@@ -519,30 +529,51 @@ const styles = StyleSheet.create({
   },
   sendText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
   
-  // Location styles
+  // ── Updated Location Styles ──
   locationCard: {
     backgroundColor: "#FFF",
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E0E0E0",
     overflow: "hidden",
     marginTop: 4,
-    width: 200,
+    width: 220,
+    padding: 12,
   },
   locationHeader: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    gap: 8,
+    gap: 10,
+    marginBottom: 8,
   },
   locationTitle: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#333",
   },
-  locationSub: {
+  locationSender: {
     fontSize: 11,
     color: "#666",
     marginTop: 2,
+  },
+  badge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 6,
+  },
+  badgeLive: { backgroundColor: "#E8F5E9" }, // Light green
+  badgeStatic: { backgroundColor: "#EEEEEE" }, // Light gray
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#333",
+  },
+  mapLink: {
+    fontSize: 12,
+    color: "#E91E63",
+    fontWeight: "700",
+    marginTop: 4,
   },
 });

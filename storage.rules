@@ -1,12 +1,13 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow authenticated users to read/write chat media (photos & voice notes)
-    match /chats/{chatId}/{allPaths=**} {
+    
+    // UPDATED: Explicit path matching for chats and enforcing user folder ownership
+    match /chats/{chatId}/{userId}/{fileName} {
       allow read: if request.auth != null;
       allow write: if request.auth != null 
-                   && request.resource.size < 10 * 1024 * 1024 // 10MB limit
-                   && request.resource.contentType.matches('image/.*|audio/.*');
+                   && request.auth.uid == userId // Security: Users can only upload to their own folder
+                   && request.resource.size < 10 * 1024 * 1024; // 10MB limit
     }
     
     // Allow authenticated users to upload avatars

@@ -14,9 +14,27 @@ import {
   Unsubscribe,
 } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { Platform } from "react-native";
 import { db, storage } from "../lib/firebase";
 import { GarbaCrewUser } from "../types/user";
 import { ChatMessage } from "../types/plan";
+
+// ─────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────
+// Fixes Android file:// protocol issues for fetch/upload
+const ensureValidUri = (uriInput: string): string => {
+  if (!uriInput || typeof uriInput !== "string") return uriInput;
+  if (
+    Platform.OS === "android" &&
+    !uriInput.startsWith("file://") &&
+    !uriInput.startsWith("content://") &&
+    !uriInput.startsWith("http")
+  ) {
+    return `file://${uriInput}`;
+  }
+  return uriInput;
+};
 
 // ─────────────────────────────────────────────────────────
 // Subscribe to messages
@@ -72,7 +90,9 @@ export async function sendImageMessage(
   me: GarbaCrewUser,
   localUri: string
 ): Promise<void> {
-  const response = await fetch(localUri);
+  // Apply URI fix
+  const validUri = ensureValidUri(localUri);
+  const response = await fetch(validUri);
   const blob = await response.blob();
   const path = `chats/${chatId}/${me.uid}/${Date.now()}.jpg`;
   const ref = storageRef(storage, path);
@@ -98,7 +118,7 @@ export async function sendImageMessage(
 }
 
 // ─────────────────────────────────────────────────────────
-// Voice messages (Feature 11)
+// Voice messages
 // ─────────────────────────────────────────────────────────
 export async function sendVoiceMessage(
   chatId: string,
@@ -106,7 +126,9 @@ export async function sendVoiceMessage(
   localUri: string,
   durationMs: number
 ): Promise<void> {
-  const response = await fetch(localUri);
+  // Apply URI fix to prevent MalformedURLException
+  const validUri = ensureValidUri(localUri);
+  const response = await fetch(validUri);
   const blob = await response.blob();
   const path = `chats/${chatId}/${me.uid}/${Date.now()}.m4a`;
   const ref = storageRef(storage, path);
@@ -127,6 +149,37 @@ export async function sendVoiceMessage(
 
   await updateDoc(doc(db, "chats", chatId), {
     lastMessage: "🎤 Voice message",
+    lastMessageAt: serverTimestamp(),
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// Location messages (NEW)
+// ─────────────────────────────────────────────────────────
+export async function sendLocationMessage(
+  chatId: string,
+  me: GarbaCrewUser,
+  latitude: number,
+  longitude: number,
+  isLive: boolean = false
+): Promise<void> {
+  await addDoc(collection(db, "chats", chatId, "messages"), {
+    fromUid: me.uid,
+    fromName: me.name ?? "Someone",
+    fromPhotoUrl: me.photoUrl ?? null,
+    type: "location",
+    text: "",
+    imageUrl: null,
+    voiceUrl: null,
+    voiceDurationMs: null,
+    latitude,
+    longitude,
+    isLive,
+    createdAt: serverTimestamp(),
+  });
+
+  await updateDoc(doc(db, "chats", chatId), {
+    lastMessage: isLive ? "📍 Live Location" : "📍 Location",
     lastMessageAt: serverTimestamp(),
   });
 }
