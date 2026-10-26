@@ -14,31 +14,24 @@ export type DayKey =
 
 export type TimeBlockKey = "morning" | "afternoon" | "evening" | "night";
 
-/**
- * A time block's local-hour range.
- * - `startHour` and `endHour` are integers 0–23 (24-hour clock).
- * - If `startHour >= endHour`, the range wraps past midnight
- *   (e.g. Night: startHour=21, endHour=6).
- */
 export interface TimeBlockRange {
   startHour: number;
   endHour: number;
 }
 
-/** Per-user override of the default block ranges. */
 export type TimeBlockRanges = Partial<Record<TimeBlockKey, TimeBlockRange>>;
 
-/**
- * Availability is stored as a flat map:
- *   { "mon_morning": "free", "tue_evening": "busy", ... }
- *
- * Absence of a key = "unknown" (distinct from "busy").
- */
 export type AvailabilityMap = Partial<
   Record<`${DayKey}_${TimeBlockKey}`, AvailabilityStatus>
 >;
 
-export interface GarbaCrewUser {
+// ─── Generic Profile Types ───
+export type SocialVibe = "introvert" | "extrovert" | "ambivert" | "life_of_the_party" | "chill";
+export type UserIntent = "friends" | "networking" | "dating" | "hobbies" | "coworking";
+export type GroupRole = "planner" | "follower" | "photographer" | "funny" | "budget_boss";
+
+// Renamed from GarbaCrewUser to AppUser for generic branding
+export interface AppUser {
   // ─── Identity (Epic 1) ───
   uid: string;
   phone: string | null;
@@ -58,15 +51,13 @@ export interface GarbaCrewUser {
   latitude?: number;
   longitude?: number;
   languages?: string[];
-  activities?: string[];
-  danceSkill?: "beginner" | "intermediate" | "advanced" | "expert";
-  preferredStyles?: string[];
-  yearsAttendingNavratri?: number;
-  groupSizePreference?: number;
-  lookingFor?: "friend" | "partner" | "crew" | "all";
-  vibeScore?: number;
-  favoriteActivitySong?: string;
-  postActivityRitual?: string;
+  activities?: string[]; 
+  
+  // ─── Generic Compatibility Fields ───
+  intent?: UserIntent[];
+  socialVibe?: SocialVibe;
+  groupRole?: GroupRole;
+  interests?: string[]; 
   bio?: string;
 
   // ─── Verification (Epic 1) ───
@@ -113,26 +104,21 @@ export interface GarbaCrewUser {
   deletedAt?: Date;
 
   // ─── Task 1: General Availability ───
-  /** Recurring weekly availability. Key = `${day}_${block}`. */
   availability?: AvailabilityMap;
-  /** Per-user overrides for block time ranges (Morning/Afternoon/Evening/Night). */
   timeBlockRanges?: TimeBlockRanges;
-  /** IANA timezone identifier at time of save (e.g. "Asia/Kolkata"). */
   availabilityTimezone?: string;
-  /** UTC offset in minutes at time of save (for DST-aware display). */
   availabilityUtcOffsetMinutes?: number;
-  /** ISO timestamp of last availability update. */
   availabilityUpdatedAt?: Date;
 
-  upiId?: string; // e.g., user@okhdfcbank
+  upiId?: string;
 
   presenceEnabled?: boolean;
 
   reminderSettings?: {
-    taskReminders?: boolean;   // 24h / due date pushes
-    overdueDigest?: boolean;   // Daily organizer digest
-    dndStart?: number;         // 0-23 (e.g., 22 for 10 PM)
-    dndEnd?: number;           // 0-23 (e.g., 7 for 7 AM)
+    taskReminders?: boolean;
+    overdueDigest?: boolean;
+    dndStart?: number;
+    dndEnd?: number;
   };
 
   analyticsOptOut?: boolean;
@@ -155,6 +141,9 @@ export interface GarbaCrewUser {
   subscriptionTier?: "free" | "plus" | "pro" | "host";
 }
 
+// Kept as an alias to prevent breaking your other files that still import GarbaCrewUser
+export type GarbaCrewUser = AppUser;
+
 export interface ProfileSetupData {
   photoUri: string | null;
   name: string;
@@ -166,13 +155,14 @@ export interface ProfileSetupData {
   longitude: number | null;
   languages: string[];
   activities: string[];
-  danceSkill: "beginner" | "intermediate" | "advanced" | "expert" | null;
-  preferredStyles: string[];
-  yearsAttendingNavratri: number | null;
+  
+  // Generic fields
+  socialVibe: SocialVibe | null;
+  intent: UserIntent[];
+  groupRole: GroupRole | null;
+  interests: string[];
+  
   groupSizePreference: number | null;
   lookingFor: "friend" | "partner" | "crew" | "all" | null;
-  vibeScore: number;
-  favoriteActivitySong: string;
-  postActivityRitual: string;
   bio: string;
 }

@@ -9,7 +9,7 @@ import {
   Alert,
   Image,
   TextInput,
-  Platform, // <-- Added for Web alert handling
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -83,9 +83,6 @@ export default function PlanDetailScreen() {
   const [reportTarget, setReportTarget] = useState<PlanParticipant | null>(null);
   const [showInvitePrompt, setShowInvitePrompt] = useState(false);
 
-  // ─────────────────────────────────────────────────────────
-  // Web-Compatible Alert Helper
-  // ─────────────────────────────────────────────────────────
   const showAlert = (title: string, message: string, buttons?: any[]) => {
     if (Platform.OS === "web") {
       if (buttons && buttons.length > 1) {
@@ -107,7 +104,6 @@ export default function PlanDetailScreen() {
     }
   };
 
-  // Live subscription to plan
   useEffect(() => {
     if (!id) return;
     const unsub = onSnapshot(
@@ -128,7 +124,6 @@ export default function PlanDetailScreen() {
     return () => unsub();
   }, [id]);
 
-  // Fetch organizer's custom time block ranges
   useEffect(() => {
     if (!plan?.hostUid) return;
     getUserProfile(plan.hostUid)
@@ -140,7 +135,6 @@ export default function PlanDetailScreen() {
       .catch((err) => console.warn("Could not load organizer ranges:", err));
   }, [plan?.hostUid]);
 
-  // Invite prompt logic
   useEffect(() => {
     const checkInvitePrompt = async () => {
       if (!user || !plan) return;
@@ -542,12 +536,14 @@ export default function PlanDetailScreen() {
             </View>
           </View>
 
+          {/* UPDATED: Generic Requirements Section */}
           {(plan.requirements.verifiedOnly ||
             plan.requirements.womenOnly ||
             plan.requirements.minGuestScore != null ||
-            plan.requirements.skillLevel) && (
+            (plan.requirements as any).preferredVibe ||
+            (plan.requirements as any).requiredInterest) && (
             <View style={styles.reqBox}>
-              <Text style={styles.reqTitle}>Requirements</Text>
+              <Text style={styles.reqTitle}>Plan Requirements</Text>
               <View style={styles.reqRow}>
                 {plan.requirements.verifiedOnly && (
                   <View style={styles.reqBadge}>
@@ -566,10 +562,17 @@ export default function PlanDetailScreen() {
                     </Text>
                   </View>
                 )}
-                {plan.requirements.skillLevel && (
-                  <View style={styles.reqBadge}>
-                    <Text style={styles.reqText}>
-                      {plan.requirements.skillLevel}
+                {(plan.requirements as any).preferredVibe && (
+                  <View style={[styles.reqBadge, { backgroundColor: "#FFF5F8" }]}>
+                    <Text style={[styles.reqText, { color: "#E91E63" }]}>
+                      ✨ {(plan.requirements as any).preferredVibe} Vibe
+                    </Text>
+                  </View>
+                )}
+                {(plan.requirements as any).requiredInterest && (
+                  <View style={[styles.reqBadge, { backgroundColor: "#E8F5E9" }]}>
+                    <Text style={[styles.reqText, { color: "#2E7D32" }]}>
+                      🎯 {(plan.requirements as any).requiredInterest} Fans
                     </Text>
                   </View>
                 )}
@@ -823,7 +826,6 @@ export default function PlanDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Replaced Modal with Absolute Overlay for Web Compatibility */}
       {showRequestModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -1142,7 +1144,6 @@ const styles = StyleSheet.create({
   },
   backTextAlt: { color: "#FFF", fontWeight: "700", fontSize: 16 },
   
-  // Updated Modal Styles for Web Compatibility
   modalOverlay: {
     position: "absolute",
     top: 0,
@@ -1153,14 +1154,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
-    zIndex: 9999, // Ensures it renders above everything
+    zIndex: 9999,
   },
   modalContent: {
     backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
     width: "100%",
-    maxWidth: 400, // Prevents it from being too wide on web
+    maxWidth: 400,
   },
   modalTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A1A" },
   modalDesc: { fontSize: 13, color: "#666", marginTop: 6, marginBottom: 16 },

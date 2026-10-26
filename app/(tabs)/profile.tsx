@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,20 +8,24 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
-import { auth } from "../../src/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
+
+import { auth, db, storage } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
 import { useProfileScore } from "../../src/hooks/useProfileScore";
 import PartnerModeToggle from "../../src/components/partner/PartnerModeToggle";
 import { useTheme } from "../../src/theme/ThemeContext";
 import { useThemedStyles } from "../../src/hooks/useThemedStyles";
 import { ThemeColors } from "../../src/theme/colors";
-// ─── Task 51: Badges ───
 import BadgeGrid from "../../src/components/profile/BadgeGrid";
-// ─── Task 53: Streaks ───
 import StreakCard from "../../src/components/profile/StreakCard";
 
 const makeStyles = (c: ThemeColors) =>
@@ -29,7 +33,11 @@ const makeStyles = (c: ThemeColors) =>
     container: { flex: 1, backgroundColor: c.bg },
     content: { paddingBottom: 40 },
     header: { alignItems: "center", paddingTop: 24, paddingBottom: 24 },
-    avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 16 },
+    avatarWrapper: {
+      position: "relative",
+      marginBottom: 16,
+    },
+    avatar: { width: 100, height: 100, borderRadius: 50 },
     avatarPlaceholder: {
       width: 100,
       height: 100,
@@ -37,9 +45,21 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.bgSubtle,
       justifyContent: "center",
       alignItems: "center",
-      marginBottom: 16,
     },
     avatarInitial: { fontSize: 36, fontWeight: "700", color: c.textMuted },
+    cameraBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      backgroundColor: c.primary,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 3,
+      borderColor: c.bg,
+    },
     name: { fontSize: 24, fontWeight: "800", color: c.text },
     city: { fontSize: 15, color: c.textSecondary, marginTop: 4 },
     verifiedBadge: {
@@ -142,6 +162,7 @@ export default function ProfileScreen() {
   const { score, tips } = useProfileScore(user);
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const [uploading, setUploading] = useState(false);
 
   const availabilityCount = user?.availability
     ? Object.keys(user.availability).length
@@ -151,23 +172,88 @@ export default function ProfileScreen() {
       ? `${availabilityCount} slot${availabilityCount === 1 ? "" : "s"} set`
       : "Set your weekly free/busy slots";
 
+  // ─────────────────────────────────────────────────────────
+  // Web-Compatible Alert Helper
+  // ─────────────────────────────────────────────────────────
+  const showAlert = (title: string, message: string, buttons?: any[]) => {
+    if (Platform.OS === "web") {
+      if (buttons && buttons.length > 1) {
+        const confirmed = window.confirm(`${title}\n\n${message}`);
+        if (confirmed) {
+          const confirmBtn = buttons.find((b) => b.style === "destructive" || b.text === "Sign Out");
+          if (confirmBtn && confirmBtn.onPress) confirmBtn.onPress();
+        }
+      } else {
+        window.alert(`${title}\n\n${message}`);
+      }
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Image Upload Logic
+  // ─────────────────────────────────────────────────────────
+  const pickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        showAlert("Permission Required", "You need to allow access to your photos to upload a profile picture.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadImage(result.assets[0].uri);
+      }
+    } catch (error: any) {
+      console.error("Image picker error:", error);
+      showAlert("Error", "Could not open image picker.");
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    if (!user) return;
+    setUploading(true);
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      const storageRef = ref(storage, `avatars/${user.uid}_${Date.now()}`);
+      await uploadBytes(storageRef, blob);
+      
+      const downloadUrl = await getDownloadURL(storageRef);
+      
+      await updateDoc(doc(db, "users", user.uid), {
+        photoUrl: downloadUrl,
+      });
+
+      showAlert("Success", "Profile picture updated!");
+    } catch (error: any) {
+      console.error("[uploadImage] failed:", error);
+      showAlert("Upload Failed", error.message ?? "Could not upload image. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const performSignOut = async () => {
     try {
       await signOut(auth);
       router.replace("/(auth)/login");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to sign out.");
+      showAlert("Error", error.message || "Failed to sign out.");
     }
   };
 
   const handleSignOut = () => {
-    if (Platform.OS === "web") {
-      // @ts-ignore
-      const confirmed = window.confirm("Are you sure you want to sign out?");
-      if (confirmed) performSignOut();
-      return;
-    }
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+    showAlert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: performSignOut },
     ]);
@@ -191,15 +277,32 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {/* ─── Header ─── */}
         <View style={styles.header}>
-          {user.photoUrl ? (
-            <Image source={{ uri: user.photoUrl }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitial}>
-                {user.name?.charAt(0)?.toUpperCase() || "?"}
-              </Text>
+          <TouchableOpacity 
+            style={styles.avatarWrapper} 
+            onPress={pickImage} 
+            disabled={uploading}
+            activeOpacity={0.8}
+          >
+            {user.photoUrl ? (
+              <Image source={{ uri: user.photoUrl }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitial}>
+                  {user.name?.charAt(0)?.toUpperCase() || "?"}
+                </Text>
+              </View>
+            )}
+            
+            {/* Camera Badge Overlay */}
+            <View style={styles.cameraBadge}>
+              {uploading ? (
+                <ActivityIndicator size="small" color={colors.textInverse} />
+              ) : (
+                <Ionicons name="camera" size={16} color={colors.textInverse} />
+              )}
             </View>
-          )}
+          </TouchableOpacity>
+
           <Text style={styles.name}>{user.name || "Your Name"}</Text>
           <Text style={styles.city}>{user.city || "Add your city"}</Text>
 

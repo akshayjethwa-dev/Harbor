@@ -18,7 +18,7 @@ import { createSquad } from "../../src/services/squadService";
 import { EMPTY_SQUAD_DRAFT, DAY_NAMES } from "../../src/types/squad";
 import { ACTIVITIES, CITIES } from "../../src/constants/activities";
 import { markSquadCreated } from "../../src/lib/onboarding"; 
-import { announce } from "../../src/lib/a11y"; // ✅ A11y utility
+import { announce } from "../../src/lib/a11y"; 
 
 import Button from "../../src/components/common/Button";
 import { Spacing, Typography } from "../../src/constants/theme";
@@ -39,39 +39,53 @@ export default function CreateSquadScreen() {
     c.toLowerCase().includes(citySearch.toLowerCase())
   );
 
+  // ─────────────────────────────────────────────────────────
+  // Web-Compatible Alert Helper
+  // ─────────────────────────────────────────────────────────
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const validate = (): boolean => {
     if (!draft.name.trim()) {
-      Alert.alert("Name required", "Give your Squad a name.");
+      showAlert("Name required", "Give your Squad a name.");
       return false;
     }
     if (!draft.activity) {
-      Alert.alert("Activity required", "Pick the main activity for this Squad.");
+      showAlert("Activity required", "Pick the main activity for this Squad.");
       return false;
     }
     if (draft.activity === "custom" && !draft.activityCustom.trim()) {
-      Alert.alert("Describe the activity", "Say what your Squad does.");
+      showAlert("Describe the activity", "Say what your Squad does.");
       return false;
     }
     if (!draft.city) {
-      Alert.alert("City required", "Pick the city your Squad is based in.");
+      showAlert("City required", "Pick the city your Squad is based in.");
       return false;
     }
     if (draft.recurringEnabled && draft.recurringDayOfWeek === null) {
-      Alert.alert("Pick a day", "Choose the day your Squad meets.");
+      showAlert("Pick a day", "Choose the day your Squad meets.");
       return false;
     }
     if (
       draft.recurringEnabled &&
       !/^\d{2}:\d{2}$/.test(draft.recurringTime)
     ) {
-      Alert.alert("Time format", "Enter time in HH:MM (e.g., 18:30).");
+      showAlert("Time format", "Enter time in HH:MM (e.g., 18:30).");
       return false;
     }
     return true;
   };
 
   const handleCreate = async () => {
-    if (!user) return;
+    if (!user) {
+      showAlert("Error", "You must be logged in to create a Squad.");
+      return;
+    }
     if (!validate()) return;
 
     setSaving(true);
@@ -79,13 +93,23 @@ export default function CreateSquadScreen() {
       const squadId = await createSquad(user, draft);
       await markSquadCreated(); 
       
-      // ✅ Announce success to screen readers
       announce("Squad created successfully");
       
       router.replace({ pathname: "/squad/[id]", params: { id: squadId } });
     } catch (e: any) {
-      Alert.alert("Could not create Squad", e.message ?? "Try again.");
-      // ✅ Announce error to screen readers
+      const code = e?.code ?? "unknown";
+      const msg = e?.message ?? "Try again.";
+      console.error("[createSquad] failed:", code, msg, e);
+      
+      if (code === "permission-denied") {
+        showAlert(
+          "Could not create Squad", 
+          "Missing or insufficient permissions. This usually happens if your Trust Balance is below 30."
+        );
+      } else {
+        showAlert("Could not create Squad", `${msg}\n\n(code: ${code})`);
+      }
+      
       announce("Failed to create squad. Please try again.");
     } finally {
       setSaving(false);

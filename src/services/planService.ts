@@ -13,11 +13,11 @@ import {
   startAfter,
   setDoc,
   QueryDocumentSnapshot,
-  updateDoc, // <-- Added for Task 34
+  updateDoc,
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import { Plan, PlanDraft, PlanJoinRequest } from "../types/plan";
-import { GarbaCrewUser } from "../types/user";
+import { GarbaCrewUser } from "../types/user"; // Kept as GarbaCrewUser to match the alias in user.ts
 
 // ─────────────────────────────────────────────────────────
 // Create Plan
@@ -54,7 +54,7 @@ export async function createPlan(
     hostPhotoUrl: host.photoUrl ?? null,
     hostScore: host.hostScore ?? 50,
     hostVerified: host.isVerified ?? false,
-    hostSubscriptionTier: host.subscriptionTier || "free", // Task 54
+    hostSubscriptionTier: host.subscriptionTier || "free",
     isHostTier: host.subscriptionTier === "host",
 
     activity: draft.activity,
@@ -77,7 +77,7 @@ export async function createPlan(
     costPerPerson,
     requiresWaiver: draft.requiresWaiver || false,
 
-    requirements: draft.requirements,
+    requirements: draft.requirements, // Will now hold preferredVibe, requiredInterest, etc.
     approvalMode: draft.approvalMode,
     visibility: draft.visibility,
 
@@ -111,7 +111,7 @@ export async function createPlan(
   // Welcome system message
   await addDoc(collection(db, "chats", chatId, "messages"), {
     fromUid: "system",
-    fromName: "GarbaCrew",
+    fromName: "Crew", // Changed from "GarbaCrew"
     fromPhotoUrl: null,
     type: "system",
     text: `${host.name ?? "Host"} created this Plan. Say hi 👋`,
@@ -148,8 +148,9 @@ export async function fetchPlans({
   hasMore: boolean;
 }> {
   const constraints: any[] = [
-    where("visibility", "==", "public"), // <-- This ensures only public plans show up
+    where("visibility", "==", "public"),
     where("status", "==", "open"),
+    where("endTime", ">=", Timestamp.now()), // <-- Hides expired plans
     orderBy("isHostTier", "desc"),
     orderBy("startTime", "asc"),
   ];
@@ -187,39 +188,48 @@ export function getPlanRole(
 }
 
 // ─────────────────────────────────────────────────────────
-// Requirements check
+// Requirements check (Generic)
 // ─────────────────────────────────────────────────────────
 export function checkRequirements(
   plan: Plan,
   user: GarbaCrewUser
 ): { ok: boolean; reason?: string } {
   const req = plan.requirements;
+
   if (req.verifiedOnly && !user.isVerified) {
     return { ok: false, reason: "This Plan requires a verified profile." };
   }
+  
   if (req.womenOnly && user.gender !== "female") {
     return { ok: false, reason: "This Plan is women-only." };
   }
-  if (
-    req.minGuestScore != null &&
-    (user.guestScore ?? 50) < req.minGuestScore
-  ) {
+  
+  if (req.minGuestScore != null && (user.guestScore ?? 50) < req.minGuestScore) {
     return {
       ok: false,
       reason: `Minimum Guest Score required: ${req.minGuestScore}.`,
     };
   }
-  if (
-    req.skillLevel &&
-    user.danceSkill &&
-    user.danceSkill !== req.skillLevel &&
-    req.skillLevel === "advanced"
-  ) {
+
+  // Generic Vibe Matching
+  const reqAny = req as any;
+  if (reqAny.preferredVibe && user.socialVibe !== reqAny.preferredVibe) {
     return {
       ok: false,
-      reason: "This Plan is for advanced skill only.",
+      reason: `This host prefers a ${reqAny.preferredVibe} vibe for this plan.`,
     };
   }
+
+  // Generic Interest Matching
+  if (reqAny.requiredInterest) {
+    if (!user.interests || !user.interests.includes(reqAny.requiredInterest)) {
+      return {
+        ok: false,
+        reason: `This Plan is specifically for people interested in ${reqAny.requiredInterest}.`,
+      };
+    }
+  }
+
   return { ok: true };
 }
 
