@@ -3,11 +3,48 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Kithra</title>
-    <meta name="description" content="Find and join Navratri Garba night dance crews, connect with fellow dancers, and discover local photographers." />
-    <meta property="og:title" content="Kithra" />
-    <meta property="og:description" content="Find and join Navratri Garba night dance crews, connect with fellow dancers, and discover local photographers." />
+
+    <!--
+      KEYBOARD FIX (mobile):
+      - viewport-fit=cover       → enables env(safe-area-inset-*) so the
+                                   bottom nav respects the iPhone home bar.
+      - interactive-widget=resizes-content
+                                 → Android Chrome shrinks the layout viewport
+                                   when the keyboard opens (instead of overlaying
+                                   it on top of the page). This is the single
+                                   biggest fix for "keyboard covers input" on
+                                   Android. iOS already behaves this way by
+                                   default.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+
+    <title>Kithra — Plan Together, Meet Better</title>
+
+    <meta
+      name="description"
+      content="Kithra helps you create plans, build crews, and connect with photographers, partners, and new people around you. Simple planning, real connections, built-in safety."
+    />
+
+    <!-- Open Graph / social sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Kithra — Plan Together, Meet Better" />
+    <meta
+      property="og:description"
+      content="Create plans, build crews, and connect with photographers and partners around you. Simple planning, real connections, built-in safety."
+    />
+    <meta property="og:site_name" content="Kithra" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Kithra — Plan Together, Meet Better" />
+    <meta
+      name="twitter:description"
+      content="Create plans, build crews, and connect with photographers and partners around you. Simple planning, real connections, built-in safety."
+    />
+
     <meta name="theme-color" content="#0D0D0D" />
   </head>
   <body class="bg-[#0D0D0D] text-white antialiased selection:bg-[#FF6B35]/30">

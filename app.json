@@ -5,7 +5,8 @@
     "scheme": "com.kithra.app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "cli": {
       "appVersionSource": "remote"
     },
@@ -38,7 +39,17 @@
       "@sentry/react-native",
       "expo-localization",
       "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-notifications",
       "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.6.21"
+          }
+        }
+      ],
       [
         "expo-audio",
         {
@@ -57,6 +68,8 @@
     },
     "android": {
       "package": "com.kithra.app",
+      "softwareKeyboardLayoutMode": "resize",
+      "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
