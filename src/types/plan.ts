@@ -160,7 +160,15 @@ export interface Plan {
 }
 
 // ─── Chat ───
-export type ChatMessageType = "text" | "image" | "system" | "voice";
+export type ChatMessageType =
+  | "text"
+  | "image"
+  | "video"
+  | "voice"
+  | "audio"
+  | "document"
+  | "location"
+  | "system";
 
 export interface ChatMessage {
   id: string;
@@ -169,10 +177,29 @@ export interface ChatMessage {
   fromPhotoUrl: string | null;
   type: ChatMessageType;
   text: string;
-  imageUrl: string | null;
+
+  // Legacy fields (still used by old messages)
+  imageUrl?: string | null;
   voiceUrl?: string | null;
   voiceDurationMs?: number | null;
-  createdAt: Timestamp | any;
+
+  // New unified media fields
+  mediaUrl?: string | null;
+  mediaMime?: string | null;
+  mediaSize?: number | null;
+  mediaName?: string | null;
+  mediaDurationMs?: number | null;
+  thumbnailUrl?: string | null;
+
+  // Location fields
+  latitude?: number | null;
+  longitude?: number | null;
+  address?: string | null;
+  isLive?: boolean | null;
+
+  // Other
+  deletedAt?: any | null;
+  createdAt?: any;
 }
 
 export interface ChatTypingEntry {
