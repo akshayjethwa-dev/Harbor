@@ -1,13 +1,25 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from "react-native";
+// src/components/plan-create/Step1Activity.tsx
+import React, { useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView } from "react-native";
 import { usePlanCreateStore } from "../../store/planCreateStore";
 import { ACTIVITIES } from "../../constants/activities";
 
-export default function Step1Activity() {
+interface Props {
+  errors?: Record<string, string>;
+}
+
+export default function Step1Activity({ errors = {} }: Props) {
   const { draft, updateDraft } = usePlanCreateStore();
+  const customInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (errors.activityCustom) {
+      customInputRef.current?.focus();
+    }
+  }, [errors.activityCustom]);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView style={styles.container}>
       <Text style={styles.title}>What's the activity?</Text>
       <Text style={styles.subtitle}>Pick the vibe for your Plan</Text>
 
@@ -29,17 +41,21 @@ export default function Step1Activity() {
         })}
       </View>
 
+      {errors.activity && <Text style={styles.errorText}>{errors.activity}</Text>}
+
       {draft.activity === "custom" && (
         <View style={styles.customBox}>
           <Text style={styles.customLabel}>What are you doing?</Text>
           <TextInput
-            style={styles.customInput}
-            placeholder="e.g., Board game night"
-            placeholderTextColor="#999"
+            ref={customInputRef}
+            style={[styles.customInput, errors.activityCustom && styles.inputError]}
             value={draft.activityCustom}
             onChangeText={(t) => updateDraft({ activityCustom: t })}
             maxLength={30}
+            placeholder="e.g. Board game night"
+            placeholderTextColor="#999"
           />
+          {errors.activityCustom && <Text style={styles.errorText}>{errors.activityCustom}</Text>}
         </View>
       )}
     </ScrollView>
@@ -76,4 +92,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#FAFAFA",
   },
+  inputError: { borderColor: "#D32F2F" },
+  errorText: { color: "#D32F2F", fontSize: 13, marginTop: 8, fontWeight: "600" },
 });

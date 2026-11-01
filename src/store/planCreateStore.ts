@@ -1,80 +1,97 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PlanDraft, EMPTY_PLAN_DRAFT } from "../types/plan";
+// src/store/planCreateStore.ts
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PlanDraft } from '../types/plan';
 
-interface PlanCreateStore {
-  currentStep: number;
+interface PlanCreateState {
   draft: PlanDraft;
+  currentStep: number;
   lastSavedAt: number | null;
+  hasHydrated: boolean;
+
+  // Actions
+  updateDraft: (partial: Partial<PlanDraft>) => void;
   setStep: (step: number) => void;
   nextStep: () => void;
   prevStep: () => void;
-  updateDraft: (partial: Partial<PlanDraft>) => void;
   reset: () => void;
+  setHasHydrated: (state: boolean) => void;
 }
 
 export const TOTAL_PLAN_STEPS = 8;
 
-// Serialize Date objects to ISO strings for AsyncStorage
-function serializeDraft(d: PlanDraft): any {
-  return {
-    ...d,
-    startDate: d.startDate ? d.startDate.toISOString() : null,
-  };
-}
+const initialDraft: PlanDraft = {
+  activity: null,
+  activityCustom: '',
+  title: '',
+  description: '',
+  startDate: null,
+  startTime: '',
+  city: '',
+  locationName: '',
+  locationAddress: '', // ✅ FIXED: Added missing property
+  latitude: null,      // ✅ FIXED: Added missing property
+  longitude: null,     // ✅ FIXED: Added missing property
+  capacity: 4,
+  approvalMode: 'auto',
+  visibility: 'public',
+  requirements: {
+    verifiedOnly: false,
+    womenOnly: false,
+    minGuestScore: null,
+    skillLevel: null,
+  },
+  costTotal: 0,
+  durationMinutes: 120,
+};
 
-function deserializeDraft(raw: any): PlanDraft {
-  if (!raw) return { ...EMPTY_PLAN_DRAFT };
-  return {
-    ...EMPTY_PLAN_DRAFT,
-    ...raw,
-    startDate: raw.startDate ? new Date(raw.startDate) : null,
-  };
-}
-
-export const usePlanCreateStore = create<PlanCreateStore>()(
+export const usePlanCreateStore = create<PlanCreateState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      draft: initialDraft,
       currentStep: 0,
-      draft: { ...EMPTY_PLAN_DRAFT },
       lastSavedAt: null,
-      setStep: (step) => set({ currentStep: step, lastSavedAt: Date.now() }),
-      nextStep: () =>
-        set((s) => ({
-          currentStep: s.currentStep + 1,
-          lastSavedAt: Date.now(),
-        })),
-      prevStep: () =>
-        set((s) => ({
-          currentStep: Math.max(0, s.currentStep - 1),
-          lastSavedAt: Date.now(),
-        })),
+      hasHydrated: false,
+
       updateDraft: (partial) =>
-        set((s) => ({
-          draft: { ...s.draft, ...partial },
-          lastSavedAt: Date.now(),
+        set((state) => ({
+          draft: { ...state.draft, ...partial },
+          lastSavedAt: Date.now(), // Record save time on every update
         })),
+
+      setStep: (step) => set({ currentStep: step, lastSavedAt: Date.now() }),
+      
+      nextStep: () => set((state) => ({ 
+        currentStep: Math.min(state.currentStep + 1, TOTAL_PLAN_STEPS - 1),
+        lastSavedAt: Date.now() 
+      })),
+      
+      prevStep: () => set((state) => ({ 
+        currentStep: Math.max(state.currentStep - 1, 0),
+        lastSavedAt: Date.now() 
+      })),
+
       reset: () =>
         set({
+          draft: initialDraft,
           currentStep: 0,
-          draft: { ...EMPTY_PLAN_DRAFT },
           lastSavedAt: null,
         }),
+
+      setHasHydrated: (state) => set({ hasHydrated: state }),
     }),
     {
-      name: "planCreateDraft",
+      name: 'plan-create-draft',
       storage: createJSONStorage(() => AsyncStorage),
-      // Serialize Dates
       partialize: (state) => ({
+        draft: state.draft,
         currentStep: state.currentStep,
-        draft: serializeDraft(state.draft),
         lastSavedAt: state.lastSavedAt,
       }),
-      // Deserialize on rehydrate
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.draft = deserializeDraft((state as any).draft);
+          state.setHasHydrated(true);
         }
       },
     }

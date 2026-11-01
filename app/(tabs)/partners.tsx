@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from "react";
+// app/(tabs)/partners.tsx
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,9 +7,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useRouter } from "expo-router";
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
 import {
   getPartnerCandidates,
@@ -17,15 +25,15 @@ import {
 import { usePartnerFiltersStore } from "../../src/store/partnerFiltersStore";
 import { PartnerCandidate } from "../../src/types/partner";
 import PartnerCard from "../../src/components/partner/PartnerCard";
+import PartnerListCard from "../../src/components/partner/PartnerListCard";
+import SegmentedControl from "../../src/components/common/SegmentedControl";
+import PartnerActivityFilterRow from "../../src/components/partner/PartnerActivityFilterRow";
 import MatchModal from "../../src/components/partner/MatchModal";
 import FiltersSheet from "../../src/components/partner/FiltersSheet";
 import { useTheme } from "../../src/theme/ThemeContext";
 import { useThemedStyles } from "../../src/hooks/useThemedStyles";
 import { ThemeColors } from "../../src/theme/colors";
 
-// ─────────────────────────────────────────────────────────
-// Styles factory — recomputed on theme change
-// ─────────────────────────────────────────────────────────
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
@@ -85,6 +93,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
       alignItems: "center",
       paddingHorizontal: 40,
+      paddingTop: 40,
     },
     emptyEmoji: { fontSize: 64, marginBottom: 16 },
     emptyTitle: {
@@ -141,6 +150,7 @@ const makeStyles = (c: ThemeColors) =>
       fontWeight: "700",
       fontSize: 15,
     },
+    listContent: { paddingHorizontal: 24, paddingBottom: 40 },
   });
 
 export default function PartnersScreen() {
@@ -150,9 +160,21 @@ export default function PartnersScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
+  const { partnerMode: partnerModeParam } = useLocalSearchParams<{
+    partnerMode?: string;
+  }>();
+
   const [candidates, setCandidates] = useState<PartnerCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<"swipe" | "browse">("swipe");
+
+  const [partnerModeEnabled, setPartnerModeEnabled] = useState<boolean>(
+    !!user?.lookingForPartner
+  );
+
+  const hasAutoEnabledRef = useRef(false);
+
   const [matchResult, setMatchResult] = useState<{
     matchId: string;
     otherName: string;
@@ -179,6 +201,40 @@ export default function PartnersScreen() {
     }, [load])
   );
 
+  useEffect(() => {
+    if (user?.lookingForPartner) setPartnerModeEnabled(true);
+  }, [user?.lookingForPartner]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (partnerModeParam !== "true") return;
+    if (hasAutoEnabledRef.current) return;
+
+    hasAutoEnabledRef.current = true;
+
+    if (user.lookingForPartner) {
+      setPartnerModeEnabled(true);
+      return;
+    }
+
+    (async () => {
+      try {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, { lookingForPartner: true });
+        setPartnerModeEnabled(true);
+
+        try {
+          const list = await getPartnerCandidates(user, filters);
+          setCandidates(list);
+        } catch (e) {
+          console.warn("Failed to reload partner candidates:", e);
+        }
+      } catch (e) {
+        console.warn("Failed to auto-enable partner mode:", e);
+      }
+    })();
+  }, [partnerModeParam, user, filters]);
+
   const current = candidates[0] ?? null;
 
   const handleSwipe = async (direction: "left" | "right" | "super") => {
@@ -202,8 +258,7 @@ export default function PartnersScreen() {
     }
   };
 
-  // ─── Partner mode is disabled ───
-  if (!user?.lookingForPartner) {
+  if (!partnerModeEnabled) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.disabledState}>
@@ -235,11 +290,57 @@ export default function PartnersScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Segmented Control */}
+      <SegmentedControl
+        options={[
+          { label: "Swipe", value: "swipe" },
+          { label: "Browse", value: "browse" },
+        ]}
+        selectedValue={viewMode}
+        onSelect={(val) => setViewMode(val as "swipe" | "browse")}
+      />
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : viewMode === "browse" ? (
+        // ─── Browse View ───
+        <View style={{ flex: 1 }}>
+          {/* New Filter Chip Row */}
+          <PartnerActivityFilterRow />
+
+          <FlatList
+            data={candidates}
+            keyExtractor={(item) => item.uid}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <PartnerListCard
+                candidate={item}
+                onPress={() =>
+                  router.push(`/partner/profile/${item.uid}` as any)
+                }
+              />
+            )}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Text style={styles.emptyEmoji}>🔍</Text>
+                <Text style={styles.emptyTitle}>No more candidates</Text>
+                <Text style={styles.emptyText}>
+                  Try expanding your filters or check back later.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyBtn}
+                  onPress={() => setShowFilters(true)}
+                >
+                  <Text style={styles.emptyBtnText}>Adjust Filters</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        </View>
       ) : !current ? (
+        // ─── Swipe View: Empty ───
         <View style={styles.empty}>
           <Text style={styles.emptyEmoji}>🔍</Text>
           <Text style={styles.emptyTitle}>No more candidates</Text>
@@ -254,6 +355,7 @@ export default function PartnersScreen() {
           </TouchableOpacity>
         </View>
       ) : (
+        // ─── Swipe View: Card ───
         <>
           <View style={styles.deckWrap}>
             <PartnerCard candidate={current} />
@@ -284,7 +386,7 @@ export default function PartnersScreen() {
 
       <MatchModal
         visible={!!matchResult}
-        myPhoto={user.photoUrl ?? null}
+        myPhoto={user?.photoUrl ?? null}
         otherPhoto={matchResult?.otherPhotoUrl ?? null}
         otherName={matchResult?.otherName ?? ""}
         superLike={matchResult?.superLike ?? false}

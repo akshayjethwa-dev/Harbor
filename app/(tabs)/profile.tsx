@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// app/(tabs)/profile.tsx
+import React from "react";
 import {
   View,
   Text,
@@ -8,17 +9,13 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
-import { doc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 
-import { auth, db, storage } from "../../src/lib/firebase";
+import { auth } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
 import { useProfileScore } from "../../src/hooks/useProfileScore";
 import PartnerModeToggle from "../../src/components/partner/PartnerModeToggle";
@@ -27,11 +24,32 @@ import { useThemedStyles } from "../../src/hooks/useThemedStyles";
 import { ThemeColors } from "../../src/theme/colors";
 import BadgeGrid from "../../src/components/profile/BadgeGrid";
 import StreakCard from "../../src/components/profile/StreakCard";
+import QuizPromptChip from "../../src/components/discover/QuizPromptChip"; // <-- NEW IMPORT
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { paddingBottom: 40 },
+    topHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    topHeaderTitle: { fontSize: 24, fontWeight: "800", color: c.text },
+    editBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      backgroundColor: c.primary + "15", 
+    },
+    editBtnText: { fontSize: 14, fontWeight: "700", color: c.primary },
     header: { alignItems: "center", paddingTop: 24, paddingBottom: 24 },
     avatarWrapper: {
       position: "relative",
@@ -47,19 +65,6 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
     },
     avatarInitial: { fontSize: 36, fontWeight: "700", color: c.textMuted },
-    cameraBadge: {
-      position: "absolute",
-      bottom: 0,
-      right: 0,
-      backgroundColor: c.primary,
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      justifyContent: "center",
-      alignItems: "center",
-      borderWidth: 3,
-      borderColor: c.bg,
-    },
     name: { fontSize: 24, fontWeight: "800", color: c.text },
     city: { fontSize: 15, color: c.textSecondary, marginTop: 4 },
     verifiedBadge: {
@@ -162,7 +167,6 @@ export default function ProfileScreen() {
   const { score, tips } = useProfileScore(user);
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const [uploading, setUploading] = useState(false);
 
   const availabilityCount = user?.availability
     ? Object.keys(user.availability).length
@@ -172,9 +176,6 @@ export default function ProfileScreen() {
       ? `${availabilityCount} slot${availabilityCount === 1 ? "" : "s"} set`
       : "Set your weekly free/busy slots";
 
-  // ─────────────────────────────────────────────────────────
-  // Web-Compatible Alert Helper
-  // ─────────────────────────────────────────────────────────
   const showAlert = (title: string, message: string, buttons?: any[]) => {
     if (Platform.OS === "web") {
       if (buttons && buttons.length > 1) {
@@ -188,58 +189,6 @@ export default function ProfileScreen() {
       }
     } else {
       Alert.alert(title, message, buttons);
-    }
-  };
-
-  // ─────────────────────────────────────────────────────────
-  // Image Upload Logic
-  // ─────────────────────────────────────────────────────────
-  const pickImage = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        showAlert("Permission Required", "You need to allow access to your photos to upload a profile picture.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await uploadImage(result.assets[0].uri);
-      }
-    } catch (error: any) {
-      console.error("Image picker error:", error);
-      showAlert("Error", "Could not open image picker.");
-    }
-  };
-
-  const uploadImage = async (uri: string) => {
-    if (!user) return;
-    setUploading(true);
-    try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      const storageRef = ref(storage, `avatars/${user.uid}_${Date.now()}`);
-      await uploadBytes(storageRef, blob);
-      
-      const downloadUrl = await getDownloadURL(storageRef);
-      
-      await updateDoc(doc(db, "users", user.uid), {
-        photoUrl: downloadUrl,
-      });
-
-      showAlert("Success", "Profile picture updated!");
-    } catch (error: any) {
-      console.error("[uploadImage] failed:", error);
-      showAlert("Upload Failed", error.message ?? "Could not upload image. Please try again.");
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -275,14 +224,22 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* ─── Header ─── */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.avatarWrapper} 
-            onPress={pickImage} 
-            disabled={uploading}
-            activeOpacity={0.8}
+        
+        {/* ─── Top Header with Edit Button ─── */}
+        <View style={styles.topHeader}>
+          <Text style={styles.topHeaderTitle}>Profile</Text>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => router.push("/profile/edit" as any)}
           >
+            <Ionicons name="pencil" size={16} color={colors.primary} />
+            <Text style={styles.editBtnText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ─── Profile Info ─── */}
+        <View style={styles.header}>
+          <View style={styles.avatarWrapper}>
             {user.photoUrl ? (
               <Image source={{ uri: user.photoUrl }} style={styles.avatar} />
             ) : (
@@ -292,16 +249,7 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             )}
-            
-            {/* Camera Badge Overlay */}
-            <View style={styles.cameraBadge}>
-              {uploading ? (
-                <ActivityIndicator size="small" color={colors.textInverse} />
-              ) : (
-                <Ionicons name="camera" size={16} color={colors.textInverse} />
-              )}
-            </View>
-          </TouchableOpacity>
+          </View>
 
           <Text style={styles.name}>{user.name || "Your Name"}</Text>
           <Text style={styles.city}>{user.city || "Add your city"}</Text>
@@ -312,6 +260,9 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        {/* ─── NEW: Vibe Quiz Prompt Chip ─── */}
+        <QuizPromptChip />
 
         {/* ─── Partner Mode toggle ─── */}
         <PartnerModeToggle />
@@ -335,10 +286,10 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* ─── Task 53: Streaks ─── */}
+        {/* ─── Streaks ─── */}
         <StreakCard />
 
-        {/* ─── Task 51: Badges ─── */}
+        {/* ─── Badges ─── */}
         <BadgeGrid badges={user.badges || []} />
 
         {/* ─── Scores ─── */}
@@ -357,41 +308,26 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ─── Wallet ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/wallet" as any)}
-        >
+        {/* ─── Links List ─── */}
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/wallet" as any)}>
           <Text style={styles.safetyLinkIcon}>💰</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Wallet</Text>
-            <Text style={styles.safetyLinkSub}>
-              Earnings, subscription, and boosts
-            </Text>
+            <Text style={styles.safetyLinkSub}>Earnings, subscription, and boosts</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── My Templates ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/templates" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/templates" as any)}>
           <Text style={styles.safetyLinkIcon}>📋</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>My Templates</Text>
-            <Text style={styles.safetyLinkSub}>
-              Reuse recurring Plan shapes
-            </Text>
+            <Text style={styles.safetyLinkSub}>Reuse recurring Plan shapes</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Availability (Task 1) ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/settings/availability" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/settings/availability" as any)}>
           <Text style={styles.safetyLinkIcon}>📅</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Availability</Text>
@@ -400,56 +336,34 @@ export default function ProfileScreen() {
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Offline Itineraries (Task 29) ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/offline" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/offline" as any)}>
           <Text style={styles.safetyLinkIcon}>📥</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Offline Itineraries</Text>
-            <Text style={styles.safetyLinkSub}>
-              Access plans without internet
-            </Text>
+            <Text style={styles.safetyLinkSub}>Access plans without internet</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Invite friends ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/referral" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/referral" as any)}>
           <Text style={styles.safetyLinkIcon}>🎁</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Invite friends</Text>
-            <Text style={styles.safetyLinkSub}>
-              Give +10, Get +10 Trust Balance
-            </Text>
+            <Text style={styles.safetyLinkSub}>Give +10, Get +10 Trust Balance</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Trust & Safety ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/settings/safety" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/settings/safety" as any)}>
           <Text style={styles.safetyLinkIcon}>🛡️</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Trust & Safety</Text>
-            <Text style={styles.safetyLinkSub}>
-              Emergency contacts, blocked users, disputes
-            </Text>
+            <Text style={styles.safetyLinkSub}>Emergency contacts, blocked users, disputes</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Task 48: How to use Kithra ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/onboarding" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/onboarding" as any)}>
           <Text style={styles.safetyLinkIcon}>🎓</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>How to use Kithra</Text>
@@ -458,11 +372,7 @@ export default function ProfileScreen() {
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Appearance ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/settings/theme" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/settings/theme" as any)}>
           <Text style={styles.safetyLinkIcon}>🎨</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Appearance</Text>
@@ -471,11 +381,7 @@ export default function ProfileScreen() {
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Language ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/settings/language" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/settings/language" as any)}>
           <Text style={styles.safetyLinkIcon}>🌐</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Language</Text>
@@ -484,17 +390,11 @@ export default function ProfileScreen() {
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* ─── Account & privacy ─── */}
-        <TouchableOpacity
-          style={styles.safetyLink}
-          onPress={() => router.push("/settings/account" as any)}
-        >
+        <TouchableOpacity style={styles.safetyLink} onPress={() => router.push("/settings/account" as any)}>
           <Text style={styles.safetyLinkIcon}>⚙️</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.safetyLinkTitle}>Account & privacy</Text>
-            <Text style={styles.safetyLinkSub}>
-              Data export, delete account
-            </Text>
+            <Text style={styles.safetyLinkSub}>Data export, delete account</Text>
           </View>
           <Text style={styles.safetyLinkChevron}>›</Text>
         </TouchableOpacity>
@@ -503,6 +403,7 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );

@@ -32,16 +32,14 @@ export default function OTPScreen() {
         if (result.user.profileComplete) {
           router.replace("/(tabs)/crews");
         } else {
-          router.replace({
-            pathname: "/(auth)/profile-setup",
-            params: { isNewUser: result.isNewUser ? "true" : "false" },
-          });
+          // Route new users to the Intent Selection screen.
+          router.replace("/onboarding/intent" as any);
         }
       } else {
         setError(result.error || "Verification failed. Try again.");
       }
     },
-    [params.verificationId]
+    [params.verificationId, router]
   );
 
   const handleResend = () => {

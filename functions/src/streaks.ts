@@ -63,6 +63,19 @@ export const evaluateWeeklyStreaks = onSchedule(
       // Prevent double-evaluating if they already have this week logged
       if (lastWeek === lastWeekId) return;
 
+      // ─── NEW: Check for No-Fault Streak Pause ───
+      const pausedUntil = user.streakPausedUntil;
+      if (pausedUntil) {
+        // Convert Firebase Timestamp to milliseconds
+        const pausedUntilMs = pausedUntil.toMillis ? pausedUntil.toMillis() : new Date(pausedUntil).getTime();
+        if (pausedUntilMs > Date.now()) {
+          logger.info(`Skipping streak evaluation for ${userDoc.id} (No-Fault Pause)`);
+          // We update the lastStreakWeek just so we don't re-evaluate this week
+          batch.update(userDoc.ref, { lastStreakWeek: lastWeekId });
+          return; // Skip this user, their streak remains untouched
+        }
+      }
+
       if (activeUids.has(userDoc.id)) {
         // User was active! Extend streak.
         const newStreak = currentStreak + 1;
@@ -136,6 +149,16 @@ export const notifyStreakAtRisk = onSchedule(
       if (activeUids.has(userDoc.id)) return; // Safe
       const user = userDoc.data();
       if (user.lastStreakWeek === thisWeekId) return; // Already evaluated this week (e.g., used freeze)
+
+      // ─── NEW: Don't warn users who are on a No-Fault Pause ───
+      const pausedUntil = user.streakPausedUntil;
+      if (pausedUntil) {
+        const pausedUntilMs = pausedUntil.toMillis ? pausedUntil.toMillis() : new Date(pausedUntil).getTime();
+        if (pausedUntilMs > Date.now()) {
+          logger.info(`Skipping streak risk alert for ${userDoc.id} (No-Fault Pause)`);
+          return;
+        }
+      }
 
       // Send push notification
       promises.push(

@@ -1,3 +1,4 @@
+// app/plan/create.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -10,6 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   BackHandler,
+  AppState,
+  AppStateStatus,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -34,28 +37,46 @@ import Step5Requirements from "../../src/components/plan-create/Step5Requirement
 import Step6Approval from "../../src/components/plan-create/Step6Approval";
 import Step7Visibility from "../../src/components/plan-create/Step7Visibility";
 import Step8Review from "../../src/components/plan-create/Step8Review";
-
-// ─── Task 1: Availability prompt ───
 import AvailabilityPrompt from "../../src/components/plan-create/AvailabilityPrompt";
+import ResumeDraftModal from "../../src/components/plan/ResumeDraftModal";
 
 export default function CreatePlanScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  // Added `preset` to params
   const { templateId, preset } = useLocalSearchParams<{ templateId?: string; preset?: string }>();
 
   const { currentStep, nextStep, prevStep, draft, reset, updateDraft } =
     usePlanCreateStore();
+  
   const lastSavedAt = usePlanCreateStore((s) => s.lastSavedAt);
+  const hasHydrated = usePlanCreateStore((s) => s.hasHydrated);
   const [saving, setSaving] = useState(false);
+  
+  const [showResumeModal, setShowResumeModal] = useState(false);
+
+  // Inline validation state
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const access = checkTrustAccess(user, "create_plan");
 
-  // ─── Task 1: has the user set any availability yet? ───
   const hasAvailability =
     !!user?.availability && Object.keys(user.availability).length > 0;
 
-  // ─── Template loader ───
+  // ─────────────────────────────────────────────────────────
+  // AppState Listener
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+      if (nextAppState.match(/inactive|background/)) {
+        usePlanCreateStore.setState({ lastSavedAt: Date.now() });
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // ─────────────────────────────────────────────────────────
+  // Template & Preset loaders
+  // ─────────────────────────────────────────────────────────
   const templateLoadedRef = useRef(false);
   useEffect(() => {
     if (!templateId || templateLoadedRef.current) return;
@@ -75,21 +96,16 @@ export default function CreatePlanScreen() {
     })();
   }, [templateId, updateDraft]);
 
-  // ─── Task 49: First Plan Preset ───
   const presetLoadedRef = useRef(false);
   useEffect(() => {
     if (preset === "first_plan" && !presetLoadedRef.current && user) {
       presetLoadedRef.current = true;
-      
-      // Reset the wizard first to clear any leftover state or draft restore prompts
       reset();
-
-      // Pre-fill the draft with a simple, fast plan
       updateDraft({
         activity: "food",
         title: "Chai & Snacks Meetup",
         description: "A quick catch-up to break the ice!",
-        startDate: new Date(Date.now() + 86400000), // Tomorrow
+        startDate: new Date(Date.now() + 86400000),
         startTime: "17:00",
         durationMinutes: 120,
         locationName: "Local Cafe",
@@ -99,41 +115,35 @@ export default function CreatePlanScreen() {
         approvalMode: "auto",
         visibility: "public",
       });
-
-      // Jump to the final step (Review)
       usePlanCreateStore.setState({ currentStep: TOTAL_PLAN_STEPS - 1 });
     }
   }, [preset, user, updateDraft, reset]);
 
-  // ─── Draft restore ───
+  // ─────────────────────────────────────────────────────────
+  // Draft restore prompt logic
+  // ─────────────────────────────────────────────────────────
   const promptedRef = useRef(false);
   useEffect(() => {
+    if (!hasHydrated) return;
     if (promptedRef.current) return;
-    if (templateId || preset) return; // Don't prompt if using a template or preset
+    if (templateId || preset) return; 
     if (!lastSavedAt) return;
+    
     const hoursAgo = (Date.now() - lastSavedAt) / (1000 * 60 * 60);
     if (hoursAgo > 24) {
       reset();
       return;
     }
-    if (currentStep === 0 && !draft.activity) return;
-    promptedRef.current = true;
-    const message = `You have an unsaved Plan draft from ${Math.round(
-      hoursAgo
-    )}h ago. Restore it?`;
-    if (Platform.OS === "web") {
-      // @ts-ignore
-      const yes = window.confirm(message);
-      if (!yes) reset();
-    } else {
-      Alert.alert("Restore draft?", message, [
-        { text: "Discard", style: "destructive", onPress: reset },
-        { text: "Restore", style: "default" },
-      ]);
-    }
-  }, [lastSavedAt, currentStep, draft.activity, reset, templateId, preset]);
 
-  // ─── Exit flow ───
+    if (currentStep === 0 && !draft.activity) return;
+
+    promptedRef.current = true;
+    setShowResumeModal(true);
+  }, [hasHydrated, lastSavedAt, currentStep, draft.activity, reset, templateId, preset]);
+
+  // ─────────────────────────────────────────────────────────
+  // Exit flow
+  // ─────────────────────────────────────────────────────────
   const performExit = useCallback(() => {
     reset();
     try {
@@ -150,9 +160,7 @@ export default function CreatePlanScreen() {
   const handleClose = useCallback(() => {
     if (Platform.OS === "web") {
       // @ts-ignore
-      const confirmed = window.confirm(
-        "Discard this Plan?\n\nYour progress will be lost."
-      );
+      const confirmed = window.confirm("Discard this Plan?\n\nYour progress will be lost.");
       if (confirmed) performExit();
       return;
     }
@@ -176,14 +184,9 @@ export default function CreatePlanScreen() {
     return () => sub.remove();
   }, [handleClose]);
 
-  // Web: warn on tab close with unsaved progress
   useEffect(() => {
     if (Platform.OS !== "web") return;
-    const hasProgress =
-      !!draft.activity ||
-      !!draft.title.trim() ||
-      !!draft.startTime ||
-      currentStep > 0;
+    const hasProgress = !!draft.activity || !!draft.title?.trim() || !!draft.startTime || currentStep > 0;
     if (!hasProgress) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -197,7 +200,6 @@ export default function CreatePlanScreen() {
     };
   }, [draft, currentStep]);
 
-  // Access guard
   if (!access.allowed) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -217,10 +219,10 @@ export default function CreatePlanScreen() {
   }
 
   const steps = [
-    <Step1Activity key={0} />,
-    <Step2Details key={1} />,
-    <Step3Location key={2} />,
-    <Step4Capacity key={3} />,
+    <Step1Activity key={0} errors={validationErrors} />,
+    <Step2Details key={1} errors={validationErrors} />,
+    <Step3Location key={2} errors={validationErrors} />,
+    <Step4Capacity key={3} errors={validationErrors} />,
     <Step5Requirements key={4} />,
     <Step6Approval key={5} />,
     <Step7Visibility key={6} />,
@@ -228,72 +230,63 @@ export default function CreatePlanScreen() {
   ];
 
   const validateStep = (): boolean => {
+    const errors: Record<string, string> = {};
+
     switch (currentStep) {
-      case 0:
+      case 0: // Step 1
         if (!draft.activity) {
-          Alert.alert("Pick an activity", "Select what you'll be doing.");
-          return false;
+          errors.activity = "Activity is required. Select what you'll be doing.";
         }
         if (draft.activity === "custom" && !draft.activityCustom.trim()) {
-          Alert.alert(
-            "Describe the activity",
-            "Please describe your custom activity."
-          );
-          return false;
+          errors.activityCustom = "Custom activity is required. Describe what you're planning.";
         }
-        return true;
-      case 1:
+        break;
+
+      case 1: // Step 2
         if (!draft.title.trim()) {
-          Alert.alert("Add a title", "Give your Plan a short title.");
-          return false;
+          errors.title = "Title is required. Give your Plan a short, catchy title.";
         }
         if (!draft.startDate) {
-          Alert.alert("Pick a date", "Select a date for your Plan.");
-          return false;
+          errors.startDate = "Date is required. Select when your Plan will happen.";
         }
         if (!/^\d{2}:\d{2}$/.test(draft.startTime)) {
-          Alert.alert("Pick a time", "Select a start time for your Plan.");
-          return false;
-        }
-        {
+          errors.startTime = "Time is required. Select a valid start time (HH:MM).";
+        } else if (draft.startDate) {
           const [hh, mm] = draft.startTime.split(":").map(Number);
           const start = new Date(draft.startDate);
           start.setHours(hh, mm, 0, 0);
           if (start.getTime() <= Date.now()) {
-            Alert.alert(
-              "Future date required",
-              "Plan start time must be in the future."
-            );
-            return false;
+            errors.startTime = "Start time must be in the future. Pick a later date or time.";
           }
         }
-        return true;
-      case 2:
+        break;
+
+      case 2: // Step 3
         if (!draft.city) {
-          Alert.alert("Pick a city", "Select the city for your Plan.");
-          return false;
+          errors.city = "City is required. Select or type your city.";
         }
         if (!draft.locationName.trim()) {
-          Alert.alert("Add venue", "Enter the venue or meeting point.");
-          return false;
+          errors.locationName = "Venue is required. Enter the venue or meeting point.";
         }
-        return true;
-      case 3:
+        break;
+
+      case 3: // Step 4
         if (draft.costTotal > 0 && draft.capacity === 0) {
-          Alert.alert(
-            "Paid + unlimited",
-            "Paid Plans need a fixed capacity so we can calculate per-person cost."
-          );
-          return false;
+          errors.capacity = "Capacity must be at least 2 for paid Plans. Increase the number of attendees.";
         }
-        return true;
+        break;
+
       default:
-        return true;
+        break;
     }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleNext = async () => {
     if (!validateStep()) return;
+    setValidationErrors({}); // Clear errors on success
     if (currentStep < TOTAL_PLAN_STEPS - 1) {
       nextStep();
       return;
@@ -301,9 +294,11 @@ export default function CreatePlanScreen() {
     await submitPlan();
   };
 
-  // ─────────────────────────────────────────────────────────
-  // Post Plan — with robust navigation
-  // ─────────────────────────────────────────────────────────
+  const handleBack = () => {
+    setValidationErrors({}); // Clear errors when going back
+    prevStep();
+  };
+
   const submitPlan = async () => {
     if (!user) {
       Alert.alert("Error", "You must be signed in.");
@@ -311,73 +306,39 @@ export default function CreatePlanScreen() {
     }
 
     setSaving(true);
-    console.log("📋 Creating Plan...", {
-      uid: user.uid,
-      activity: draft.activity,
-      title: draft.title,
-      startDate: draft.startDate,
-      startTime: draft.startTime,
-      city: draft.city,
-    });
-
     try {
       const planId = await createPlan(user, draft);
-      console.log("✅ Plan created:", planId);
-
-      // Reset wizard state before navigating
       reset();
 
-      // ─── Robust navigation with multiple fallbacks ───
       const targetPath = `/plan/${planId}`;
-
-      // Small delay to let React unmount any pending UI updates
       await new Promise((r) => setTimeout(r, 100));
 
       try {
-        // Attempt 1: direct string path (most reliable in Expo Router v4)
         router.replace(targetPath as any);
-        console.log("✅ Navigated via router.replace to", targetPath);
       } catch (navErr) {
-        console.warn("router.replace failed, trying push:", navErr);
         try {
-          // Attempt 2: router.push
           router.push(targetPath as any);
-          console.log("✅ Navigated via router.push to", targetPath);
         } catch (pushErr) {
-          console.warn("router.push failed, trying hard nav:", pushErr);
-          // Attempt 3: hard navigation on web
           if (Platform.OS === "web") {
             // @ts-ignore
             window.location.href = targetPath;
           } else {
-            // Attempt 4: dismiss modal then push (native)
             try {
               // @ts-ignore
-              if (router.dismiss) {
-                // @ts-ignore
-                router.dismiss();
-              }
+              if (router.dismiss) router.dismiss();
             } catch {}
             setTimeout(() => {
               try {
                 router.push(targetPath as any);
               } catch (finalErr) {
-                Alert.alert(
-                  "Plan created!",
-                  `Plan ID: ${planId}\n\nPlease open it from the Discover tab.`,
-                  [{ text: "OK" }]
-                );
+                Alert.alert("Plan created!", `Plan ID: ${planId}\n\nPlease open it from the Discover tab.`);
               }
             }, 200);
           }
         }
       }
     } catch (e: any) {
-      console.error("❌ Plan creation failed:", e);
-      Alert.alert(
-        "Could not create Plan",
-        e.message ?? "Please try again."
-      );
+      Alert.alert("Could not create Plan", e.message ?? "Please try again.");
     } finally {
       setSaving(false);
     }
@@ -385,25 +346,24 @@ export default function CreatePlanScreen() {
 
   const progressPct = ((currentStep + 1) / TOTAL_PLAN_STEPS) * 100;
 
+  if (!hasHydrated) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#E91E63" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={handleClose}
-            style={styles.closeBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
+          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
 
           <View style={styles.progressTrack}>
-            <View
-              style={[styles.progressFill, { width: `${progressPct}%` }]}
-            />
+            <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
           </View>
 
           <Text style={styles.stepLabel}>
@@ -411,33 +371,19 @@ export default function CreatePlanScreen() {
           </Text>
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingTop: 16 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* ─── Task 1: First-plan availability nudge ─── */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 16 }} keyboardShouldPersistTaps="handled">
           <AvailabilityPrompt hasAvailability={hasAvailability} />
-
           {steps[currentStep]}
         </ScrollView>
 
         <View style={styles.footer}>
           {currentStep > 0 && (
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={prevStep}
-              disabled={saving}
-            >
+            <TouchableOpacity style={styles.backBtn} onPress={handleBack} disabled={saving}>
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
-            style={[
-              styles.nextBtn,
-              currentStep === 0 && { flex: 1, marginLeft: 0 },
-              saving && { opacity: 0.6 },
-            ]}
+            style={[styles.nextBtn, currentStep === 0 && { flex: 1, marginLeft: 0 }, saving && { opacity: 0.6 }]}
             onPress={handleNext}
             disabled={saving}
           >
@@ -451,6 +397,16 @@ export default function CreatePlanScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <ResumeDraftModal
+        visible={showResumeModal}
+        step={currentStep + 1}
+        onResume={() => setShowResumeModal(false)}
+        onStartFresh={() => {
+          reset();
+          setShowResumeModal(false);
+        }}
+      />
     </SafeAreaView>
   );
 }

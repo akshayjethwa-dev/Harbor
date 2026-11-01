@@ -1,46 +1,48 @@
+// src/components/plan-create/Step4Capacity.tsx
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from "react-native";
 import { usePlanCreateStore } from "../../store/planCreateStore";
 import { CAPACITY_OPTIONS } from "../../constants/activities";
 
-export default function Step4Capacity() {
-  const { draft, updateDraft } = usePlanCreateStore();
+interface Props {
+  errors?: Record<string, string>;
+}
 
-  const perPerson =
-    draft.capacity > 0 ? Math.round(draft.costTotal / draft.capacity) : 0;
+export default function Step4Capacity({ errors = {} }: Props) {
+  const { draft, updateDraft } = usePlanCreateStore();
+  const perPerson = draft.capacity > 0 ? Math.round(draft.costTotal / draft.capacity) : 0;
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container}>
       <Text style={styles.title}>Capacity & Cost</Text>
-
       <Text style={styles.label}>How many people can join?</Text>
+
       <View style={styles.capacityGrid}>
-        {CAPACITY_OPTIONS.map((c) => (
-          <TouchableOpacity
-            key={c.value}
-            style={[styles.capacityCard, draft.capacity === c.value && styles.capacityCardActive]}
-            onPress={() => updateDraft({ capacity: c.value })}
-          >
-            <Text
-              style={[
-                styles.capacityLabel,
-                draft.capacity === c.value && styles.capacityLabelActive,
-              ]}
+        {CAPACITY_OPTIONS.map((c) => {
+          const active = draft.capacity === c.value;
+          return (
+            <TouchableOpacity
+              key={c.value}
+              style={[styles.capacityCard, active && styles.capacityCardActive, errors.capacity && styles.inputError]}
+              onPress={() => updateDraft({ capacity: c.value })}
             >
-              {c.label}
-            </Text>
-            <Text style={styles.capacityDesc}>{c.desc}</Text>
-          </TouchableOpacity>
-        ))}
+              <Text style={[styles.capacityLabel, active && styles.capacityLabelActive]}>
+                {c.label}
+              </Text>
+              <Text style={styles.capacityDesc}>{c.desc}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
+
+      {errors.capacity && <Text style={styles.errorText}>{errors.capacity}</Text>}
 
       <Text style={styles.label}>Total cost (₹) — 0 for free</Text>
       <TextInput
         style={styles.input}
-        placeholder="0"
-        placeholderTextColor="#999"
         keyboardType="number-pad"
-        value={draft.costTotal.toString()}
+        value={draft.costTotal === 0 ? "" : String(draft.costTotal)}
+        placeholder="0"
         onChangeText={(t) => {
           const n = parseInt(t.replace(/[^0-9]/g, ""), 10);
           updateDraft({ costTotal: isNaN(n) ? 0 : n });
@@ -57,7 +59,8 @@ export default function Step4Capacity() {
 
       <View style={styles.noteBox}>
         <Text style={styles.noteText}>
-          💡 Paid Plans use Razorpay checkout. Funds are held in escrow until 24h after the Plan completes.
+          Paid Plans use Razorpay checkout. Funds are held in escrow until 24h
+          after the Plan completes.
         </Text>
       </View>
     </ScrollView>
@@ -96,7 +99,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
   },
-  breakdownText: { fontSize: 14, color: "#2E7D32", fontWeight: "700", textAlign: "center" },
+  breakdownText: {
+    fontSize: 14,
+    color: "#2E7D32",
+    fontWeight: "700",
+    textAlign: "center",
+  },
   noteBox: {
     marginTop: 24,
     backgroundColor: "#FFF8E1",
@@ -104,4 +112,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   noteText: { fontSize: 13, color: "#666", lineHeight: 20 },
+  inputError: { borderColor: "#D32F2F" },
+  errorText: { color: "#D32F2F", fontSize: 13, marginTop: 8, fontWeight: "600" },
 });

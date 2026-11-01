@@ -1,3 +1,4 @@
+// app/(tabs)/trust.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -10,15 +11,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
 import { getScoreHistory, ScoreEvent } from "../../src/services/scoreService";
-import {
-  checkTrustAccess,
-  getTierLabel,
-} from "../../src/services/accessControl";
+import { checkTrustAccess, getTierLabel } from "../../src/services/accessControl";
+import TrustPrimerModal from "../../src/components/trust/TrustPrimerModal";
+import TrustScoreBreakdownSheet from "../../src/components/trust/TrustScoreBreakdownSheet"; // <-- NEW IMPORT
 
 export default function TrustScreen() {
   const { user } = useAuth();
   const [history, setHistory] = useState<ScoreEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [primerVisible, setPrimerVisible] = useState(false);
+  const [breakdownVisible, setBreakdownVisible] = useState(false); // <-- NEW STATE
 
   useEffect(() => {
     if (!user) return;
@@ -34,16 +36,38 @@ export default function TrustScreen() {
   const access = checkTrustAccess(user, "join_plan");
   const tierLabel = getTierLabel(access.level);
 
+  // Derive breakdown values from the user object
+  // Note: Adjust these calculations based on your actual data model
+  const showUpRate = user.completedPlans && user.plansJoined 
+    ? Math.round((user.completedPlans / user.plansJoined) * 100) 
+    : 100;
+  const hostRating = user.hostScore ?? 50;
+  const guestRating = user.guestScore ?? 50;
+
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Trust Dashboard</Text>
+        {/* Header with Help Icon */}
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Trust Dashboard</Text>
+          <TouchableOpacity
+            onPress={() => setPrimerVisible(true)}
+            style={styles.helpButton}
+            accessibilityLabel="What is Trust Balance?"
+          >
+            <Text style={styles.helpIcon}>?</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.subtitle}>
           Your standing in the Kithra community.
         </Text>
 
-        {/* Trust Balance Hero */}
-        <View style={styles.hero}>
+        {/* Trust Balance Hero - Made Tappable */}
+        <TouchableOpacity
+          style={styles.hero}
+          activeOpacity={0.7}
+          onPress={() => setBreakdownVisible(true)} // <-- TRIGGER BREAKDOWN
+        >
           <Text style={styles.heroLabel}>Trust Balance</Text>
           <Text style={styles.heroValue}>{trustBalance}</Text>
           <View style={styles.tierBadge}>
@@ -51,37 +75,32 @@ export default function TrustScreen() {
           </View>
           <View style={styles.barTrack}>
             <View
-              style={[styles.barFill, { width: `${trustBalance}%` }]}
+              style={[styles.barFill, { width: `${Math.min(trustBalance, 100)}%` }]}
             />
           </View>
-        </View>
+          <Text style={styles.tapHint}>Tap to see breakdown</Text>
+        </TouchableOpacity>
 
         {/* Dual Scores */}
         <View style={styles.scoresRow}>
           <View style={styles.scoreCard}>
             <Text style={styles.scoreCardLabel}>Host Score</Text>
             <Text style={styles.scoreCardValue}>{user.hostScore ?? 50}</Text>
-            <Text style={styles.scoreCardSub}>
-              {user.plansHosted ?? 0} Plans hosted
-            </Text>
+            <Text style={styles.scoreCardSub}>{user.plansHosted ?? 0} Plans hosted</Text>
           </View>
           <View style={styles.scoreCard}>
             <Text style={styles.scoreCardLabel}>Guest Score</Text>
             <Text style={styles.scoreCardValue}>{user.guestScore ?? 50}</Text>
-            <Text style={styles.scoreCardSub}>
-              {user.plansJoined ?? 0} Plans joined
-            </Text>
+            <Text style={styles.scoreCardSub}>{user.plansJoined ?? 0} Plans joined</Text>
           </View>
         </View>
 
         {/* Streak */}
         <View style={styles.streakCard}>
           <Text style={styles.streakEmoji}>🔥</Text>
-          <View style={{ flex: 1 }}>
+          <View>
             <Text style={styles.streakTitle}>Current Streak</Text>
-            <Text style={styles.streakValue}>
-              {user.streak ?? 0} successful Plans in a row
-            </Text>
+            <Text style={styles.streakValue}>{user.streak ?? 0} successful Plans in a row</Text>
           </View>
         </View>
 
@@ -91,13 +110,15 @@ export default function TrustScreen() {
           <Text style={styles.tipItem}>• Show up on time to every Plan (+10 Trust)</Text>
           <Text style={styles.tipItem}>• Host Plans regularly (+15 Host Score)</Text>
           <Text style={styles.tipItem}>• Get 5-star ratings (+5 Host / +2 Guest)</Text>
-          <Text style={styles.tipItem}>• Cancel early if you must (no penalty {">"}7 days)</Text>
+          <Text style={styles.tipItem}>
+            • Cancel early if you must (no penalty {">"}7 days)
+          </Text>
         </View>
 
         {/* History */}
         <Text style={styles.sectionTitle}>Recent Activity</Text>
         {loading ? (
-          <ActivityIndicator color="#E91E63" style={{ marginTop: 12 }} />
+          <ActivityIndicator color="#E91E63" />
         ) : history.length === 0 ? (
           <Text style={styles.emptyText}>
             No activity yet. Join your first Plan to start building trust.
@@ -118,6 +139,21 @@ export default function TrustScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Contextual Primer Modal */}
+      <TrustPrimerModal
+        visible={primerVisible}
+        onClose={() => setPrimerVisible(false)}
+      />
+
+      {/* NEW: Trust Score Breakdown Bottom Sheet */}
+      <TrustScoreBreakdownSheet
+        visible={breakdownVisible}
+        onClose={() => setBreakdownVisible(false)}
+        showUpRate={showUpRate}
+        hostRating={hostRating}
+        guestRating={guestRating}
+      />
     </SafeAreaView>
   );
 }
@@ -125,7 +161,22 @@ export default function TrustScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF" },
   content: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 60 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
   title: { fontSize: 26, fontWeight: "800", color: "#1A1A1A" },
+  helpButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F0F0F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  helpIcon: { fontSize: 18, fontWeight: "700", color: "#666" },
   subtitle: { fontSize: 15, color: "#666", marginTop: 4, marginBottom: 24 },
   hero: {
     backgroundColor: "#FFF0F5",
@@ -146,14 +197,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tierText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
-  barTrack: {
-    width: "100%",
-    height: 8,
-    backgroundColor: "#F8BBD0",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
+  barTrack: { width: "100%", height: 8, backgroundColor: "#F8BBD0", borderRadius: 4, overflow: "hidden" },
   barFill: { height: "100%", backgroundColor: "#E91E63" },
+  tapHint: { fontSize: 12, color: "#E91E63", marginTop: 12, fontWeight: "600" },
   scoresRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   scoreCard: {
     flex: 1,
@@ -179,12 +225,7 @@ const styles = StyleSheet.create({
   streakEmoji: { fontSize: 32, marginRight: 14 },
   streakTitle: { fontSize: 13, color: "#F57F17", fontWeight: "700" },
   streakValue: { fontSize: 15, color: "#666", marginTop: 2 },
-  tipsCard: {
-    backgroundColor: "#F3E5F5",
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 24,
-  },
+  tipsCard: { backgroundColor: "#F3E5F5", borderRadius: 16, padding: 18, marginBottom: 24 },
   tipsTitle: { fontSize: 15, fontWeight: "700", color: "#6A1B9A", marginBottom: 10 },
   tipItem: { fontSize: 14, color: "#555", lineHeight: 24 },
   sectionTitle: { fontSize: 18, fontWeight: "800", color: "#1A1A1A", marginBottom: 12 },

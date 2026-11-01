@@ -1,5 +1,7 @@
 // src/types/user.ts
 
+import { VibeQuizAnswers } from "./quiz";
+
 // ─── Availability types (Task 1) ───
 export type AvailabilityStatus = "free" | "busy" | "maybe";
 
@@ -38,6 +40,7 @@ export interface AppUser {
   email: string | null;
   displayName: string | null;
   photoUrl: string | null;
+  photos?: string[]; // <-- NEW: Array for multiple photos
   createdAt: Date;
   profileComplete: boolean;
 
@@ -59,6 +62,7 @@ export interface AppUser {
   groupRole?: GroupRole;
   interests?: string[]; 
   bio?: string;
+  vibeQuizAnswers?: VibeQuizAnswers;
 
   // ─── Verification (Epic 1) ───
   isVerified: boolean;

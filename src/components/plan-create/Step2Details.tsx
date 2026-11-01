@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,8 +14,7 @@ import { usePlanCreateStore } from "../../store/planCreateStore";
 import { DURATION_OPTIONS } from "../../constants/activities";
 
 // ─────────────────────────────────────────────────────────
-// Web-only HTML inputs (rendered via React.createElement)
-// React Native Web passes these through to the DOM as-is.
+// Web-only HTML inputs
 // ─────────────────────────────────────────────────────────
 function WebDateInput({
   value,
@@ -93,8 +92,18 @@ function toDisplayDate(d: Date | null): string {
   });
 }
 
-export default function Step2Details() {
+interface Props {
+  errors?: Record<string, string>;
+}
+
+export default function Step2Details({ errors = {} }: Props) {
   const { draft, updateDraft } = usePlanCreateStore();
+  const titleRef = useRef<TextInput>(null);
+
+  // Auto-focus title if it's missing
+  useEffect(() => {
+    if (errors.title) titleRef.current?.focus();
+  }, [errors.title]);
 
   // Native date picker state
   const [showDate, setShowDate] = useState(false);
@@ -121,7 +130,6 @@ export default function Step2Details() {
 
   // Native handlers
   const onDateChange = (event: any, selected?: Date) => {
-    // On Android, picker dismisses automatically — hide our state
     if (Platform.OS === "android") setShowDate(false);
     if (event.type === "dismissed") return;
     if (selected) {
@@ -183,13 +191,15 @@ export default function Step2Details() {
       {/* Title */}
       <Text style={styles.label}>Title</Text>
       <TextInput
-        style={styles.input}
+        ref={titleRef}
+        style={[styles.input, errors.title && styles.inputError]}
         placeholder="e.g., Saturday morning cricket"
         placeholderTextColor="#999"
         value={draft.title}
         onChangeText={(t) => updateDraft({ title: t })}
         maxLength={60}
       />
+      {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
 
       {/* Description */}
       <Text style={styles.label}>Description (optional)</Text>
@@ -211,7 +221,7 @@ export default function Step2Details() {
       ) : (
         <>
           <TouchableOpacity
-            style={styles.pickerButton}
+            style={[styles.pickerButton, errors.startDate && styles.inputError]}
             onPress={() => setShowDate(true)}
             activeOpacity={0.7}
           >
@@ -226,7 +236,6 @@ export default function Step2Details() {
             <Text style={styles.pickerChevron}>›</Text>
           </TouchableOpacity>
 
-          {/* iOS: show inline spinner; Android: native modal */}
           {showDate && (
             <>
               {Platform.OS === "ios" ? (
@@ -270,6 +279,7 @@ export default function Step2Details() {
           )}
         </>
       )}
+      {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
 
       {/* Time */}
       <Text style={styles.label}>Start Time</Text>
@@ -278,7 +288,7 @@ export default function Step2Details() {
       ) : (
         <>
           <TouchableOpacity
-            style={styles.pickerButton}
+            style={[styles.pickerButton, errors.startTime && styles.inputError]}
             onPress={() => setShowTime(true)}
             activeOpacity={0.7}
           >
@@ -306,14 +316,8 @@ export default function Step2Details() {
                         <Text style={styles.modalTitle}>Select Time</Text>
                         <TouchableOpacity
                           onPress={() => {
-                            const hh = String(tempTime.getHours()).padStart(
-                              2,
-                              "0"
-                            );
-                            const mm = String(tempTime.getMinutes()).padStart(
-                              2,
-                              "0"
-                            );
+                            const hh = String(tempTime.getHours()).padStart(2, "0");
+                            const mm = String(tempTime.getMinutes()).padStart(2, "0");
                             updateDraft({ startTime: `${hh}:${mm}` });
                             setShowTime(false);
                           }}
@@ -344,6 +348,7 @@ export default function Step2Details() {
           )}
         </>
       )}
+      {errors.startTime && <Text style={styles.errorText}>{errors.startTime}</Text>}
 
       {/* Duration */}
       <Text style={styles.label}>Duration</Text>
@@ -420,7 +425,6 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: "#E91E63", backgroundColor: "#FFF0F5" },
   chipText: { fontSize: 13, fontWeight: "600", color: "#666" },
   chipTextActive: { color: "#E91E63" },
-  // iOS modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -444,4 +448,7 @@ const styles = StyleSheet.create({
   modalCancel: { fontSize: 15, color: "#666", fontWeight: "600" },
   modalTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
   modalDone: { fontSize: 15, color: "#E91E63", fontWeight: "700" },
+  // New validation styles
+  inputError: { borderColor: "#D32F2F" },
+  errorText: { color: "#D32F2F", fontSize: 13, marginTop: 8, fontWeight: "600" },
 });

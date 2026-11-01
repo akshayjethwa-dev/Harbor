@@ -1,3 +1,4 @@
+// functions/src/planJoin.ts
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
@@ -91,7 +92,6 @@ export const joinPlan = onCall(async (request) => {
     const isManual =
       plan.approvalMode === "manual" || plan.approvalMode === "paid_manual";
 
-    // Paid plans use Razorpay (Sprint 5), not this flow
     if (isPaid) {
       throw new HttpsError(
         "failed-precondition",
@@ -210,7 +210,7 @@ export const joinPlan = onCall(async (request) => {
 });
 
 // ─────────────────────────────────────────────────────────
-// Story 3.10: Leave a Plan (participant)
+// Story 3.10: Leave a Plan (participant) - WITH STREAK PAUSE
 // ─────────────────────────────────────────────────────────
 export const leavePlan = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in");
@@ -236,8 +236,9 @@ export const leavePlan = onCall(async (request) => {
         "Hosts must cancel the Plan instead of leaving"
       );
     }
+    
+    // Handle pending request case
     if (!(plan.participants ?? []).includes(uid)) {
-      // Handle pending request case
       if ((plan.pendingRequests ?? []).some((r: any) => r.uid === uid)) {
         const cleaned = (plan.pendingRequests ?? []).filter(
           (r: any) => r.uid !== uid
@@ -259,12 +260,24 @@ export const leavePlan = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "You're not in this Plan");
     }
 
+    // Calculate time until start
+    const now = Date.now();
+    const startTime = plan.startTime.toMillis ? plan.startTime.toMillis() : new Date(plan.startTime).getTime();
+    const hoursUntilStart = (startTime - now) / (1000 * 60 * 60);
+
     // Refund Trust Balance escrow (5 back)
     if (user) {
-      tx.update(userRef, {
+      const updates: any = {
         trustBalance: Math.min(100, (user.trustBalance ?? 50) + 5),
         escrowBalance: FieldValue.increment(-5),
-      });
+      };
+
+      // No-Fault Streak Pause: If leaving >24h before start, pause streak
+      if (hoursUntilStart > 24) {
+        updates.streakPausedUntil = Timestamp.fromDate(new Date(now + 7 * 24 * 60 * 60 * 1000));
+      }
+
+      tx.update(userRef, updates);
     }
 
     // Remove from participants

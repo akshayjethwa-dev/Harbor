@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,13 +15,24 @@ import * as Location from "expo-location";
 import { usePlanCreateStore } from "../../store/planCreateStore";
 import { CITIES } from "../../constants/activities";
 
-export default function Step3Location() {
+interface Props {
+  errors?: Record<string, string>;
+}
+
+export default function Step3Location({ errors = {} }: Props) {
   const { draft, updateDraft } = usePlanCreateStore();
+  const venueRef = useRef<TextInput>(null);
+
   const [loading, setLoading] = useState(false);
   const [showCityModal, setShowCityModal] = useState(false);
   const [citySearch, setCitySearch] = useState("");
   const [customCityMode, setCustomCityMode] = useState(false);
   const [customCity, setCustomCity] = useState("");
+
+  // Auto-focus venue if it's missing
+  useEffect(() => {
+    if (errors.locationName) venueRef.current?.focus();
+  }, [errors.locationName]);
 
   // Filter cities by search term
   const filteredCities = useMemo(() => {
@@ -60,9 +71,6 @@ export default function Step3Location() {
         console.warn("Reverse geocode failed:", e);
       }
 
-      // ✅ FIX: `PlanDraft` doesn't have an `area` field.
-      // We use the detected area as a starting point for `locationAddress`
-      // (user can edit it in the "Address" field below).
       updateDraft({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -116,7 +124,7 @@ export default function Step3Location() {
       {/* City selector */}
       <Text style={styles.label}>City</Text>
       <TouchableOpacity
-        style={styles.input}
+        style={[styles.input, errors.city && styles.inputError]}
         onPress={() => setShowCityModal(true)}
         activeOpacity={0.7}
       >
@@ -125,16 +133,19 @@ export default function Step3Location() {
         </Text>
         <Text style={styles.chevron}>›</Text>
       </TouchableOpacity>
+      {errors.city && <Text style={styles.errorText}>{errors.city}</Text>}
 
       {/* Venue */}
       <Text style={styles.label}>Venue name</Text>
       <TextInput
-        style={styles.inputNoChevron}
+        ref={venueRef}
+        style={[styles.inputNoChevron, errors.locationName && styles.inputError]}
         placeholder="e.g., Juhu Beach"
         placeholderTextColor="#999"
         value={draft.locationName}
         onChangeText={(t) => updateDraft({ locationName: t })}
       />
+      {errors.locationName && <Text style={styles.errorText}>{errors.locationName}</Text>}
 
       {/* Address */}
       <Text style={styles.label}>Address (optional)</Text>
@@ -320,7 +331,6 @@ const styles = StyleSheet.create({
   inputText: { fontSize: 16, color: "#333" },
   placeholder: { fontSize: 16, color: "#999" },
   chevron: { fontSize: 22, color: "#CCC" },
-  // ─── Modal ───
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -387,7 +397,6 @@ const styles = StyleSheet.create({
     color: "#999",
     fontSize: 14,
   },
-  // ─── Custom city entry ───
   customCityBox: { paddingHorizontal: 20, paddingBottom: 20 },
   customCityInput: {
     borderWidth: 1.5,
@@ -410,4 +419,7 @@ const styles = StyleSheet.create({
   confirmText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
   backToList: { paddingVertical: 12, alignItems: "center" },
   backToListText: { color: "#E91E63", fontSize: 14, fontWeight: "600" },
+  // New validation styles
+  inputError: { borderColor: "#D32F2F" },
+  errorText: { color: "#D32F2F", fontSize: 13, marginTop: 8, fontWeight: "600" },
 });

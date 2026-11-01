@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../src/lib/firebase";
 import { useAuth } from "../../src/context/AuthContext";
-import { SocialVibe, UserIntent } from "../../src/types/user";
 
 const INTENTS = [
   { id: "friends", label: "Make Friends", emoji: "🤝" },
@@ -55,7 +54,9 @@ export default function OnboardingVibeScreen() {
         interests: selectedInterests,
         onboardingComplete: true,
       });
-      router.replace("/(tabs)/plans" as any);
+      
+      // NEW: Route to the optional Vibe Quiz
+      router.replace("/onboarding/vibe-quiz" as any);
     } catch (error) {
       console.error(error);
       alert("Failed to save. Please try again.");
@@ -123,7 +124,7 @@ export default function OnboardingVibeScreen() {
         onPress={handleContinue}
         disabled={loading}
       >
-        <Text style={styles.buttonText}>{loading ? "Saving..." : "Complete Profile"}</Text>
+        <Text style={styles.buttonText}>{loading ? "Saving..." : "Continue to Vibe Quiz"}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

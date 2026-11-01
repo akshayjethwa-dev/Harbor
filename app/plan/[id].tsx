@@ -1,3 +1,4 @@
+// app/plan/[id].tsx
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -48,6 +49,7 @@ import ReportProfileModal from "../../src/components/profile/ReportProfileModal"
 import ContextualTip from "../../src/components/onboarding/ContextualTip";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import InvitePromptModal from "../../src/components/referral/InvitePromptModal";
+import Toast from "../../src/components/common/Toast"; // <-- Toast integration
 
 function formatFullDate(ts: any): string {
   if (!ts) return "TBD";
@@ -82,6 +84,10 @@ export default function PlanDetailScreen() {
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [reportTarget, setReportTarget] = useState<PlanParticipant | null>(null);
   const [showInvitePrompt, setShowInvitePrompt] = useState(false);
+
+  // Toast state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   const showAlert = (title: string, message: string, buttons?: any[]) => {
     if (Platform.OS === "web") {
@@ -158,10 +164,7 @@ export default function PlanDetailScreen() {
   const handlePrimaryAction = async () => {
     if (!plan) return;
     if (!user) {
-      showAlert(
-        "Sign in required",
-        "Please sign in to join or interact with this plan."
-      );
+      showAlert("Sign in required", "Please sign in to join or interact with this plan.");
       return;
     }
 
@@ -191,10 +194,7 @@ export default function PlanDetailScreen() {
               } catch (e: any) {
                 const code = e?.code ?? "unknown";
                 console.error("[leavePlan] failed:", code, e?.message, e);
-                showAlert(
-                  "Could not leave",
-                  `${e?.message ?? "Please try again."}\n\n(code: ${code})`
-                );
+                showAlert("Could not leave", `${e?.message ?? "Please try again."}\n\n(code: ${code})`);
               } finally {
                 setActing(false);
               }
@@ -218,10 +218,7 @@ export default function PlanDetailScreen() {
             } catch (e: any) {
               const code = e?.code ?? "unknown";
               console.error("[leavePlan/pending] failed:", code, e?.message, e);
-              showAlert(
-                "Error",
-                `${e?.message ?? "Please try again."}\n\n(code: ${code})`
-              );
+              showAlert("Error", `${e?.message ?? "Please try again."}\n\n(code: ${code})`);
             } finally {
               setActing(false);
             }
@@ -261,11 +258,14 @@ export default function PlanDetailScreen() {
       setShowRequestModal(false);
 
       if (result?.status === "joined") {
-        showAlert("You're in! 🎉", "Say hi to the crew in the chat.");
+        setToastMessage("You're in! 🎉 Say hi to the crew in the chat.");
+        setToastVisible(true);
       } else if (result?.status === "requested") {
-        showAlert("Request sent", "The host will review and respond within 48 hours.");
+        setToastMessage("Request sent. The host will review within 48 hours.");
+        setToastVisible(true);
       } else if (result?.status === "waitlisted") {
-        showAlert("Waitlisted", "We'll notify you if a spot opens up.");
+        setToastMessage("Waitlisted. We'll notify you if a spot opens up.");
+        setToastVisible(true);
       } else {
         showAlert("Done", `Join result: ${result?.status ?? "unknown"}.`);
       }
@@ -288,10 +288,7 @@ export default function PlanDetailScreen() {
     } catch (e: any) {
       const code = e?.code ?? "unknown";
       console.error("[approveJoinRequest] failed:", code, e?.message, e);
-      showAlert(
-        "Could not approve",
-        `${e?.message ?? "Try again."}\n\n(code: ${code})`
-      );
+      showAlert("Could not approve", `${e?.message ?? "Try again."}\n\n(code: ${code})`);
     }
   };
 
@@ -308,10 +305,7 @@ export default function PlanDetailScreen() {
           } catch (e: any) {
             const code = e?.code ?? "unknown";
             console.error("[declineJoinRequest] failed:", code, e?.message, e);
-            showAlert(
-              "Could not decline",
-              `${e?.message ?? "Try again."}\n\n(code: ${code})`
-            );
+            showAlert("Could not decline", `${e?.message ?? "Try again."}\n\n(code: ${code})`);
           }
         },
       },
@@ -364,12 +358,8 @@ export default function PlanDetailScreen() {
   const act = getActivityMeta(plan.activity);
   const role = user ? getPlanRole(plan, user.uid) : "visitor";
 
-  const priceLabel =
-    plan.costTotal > 0 ? `₹${plan.costPerPerson} / person` : "Free";
-  const capacityLabel =
-    plan.capacity === 0
-      ? "Unlimited"
-      : `${plan.spotsFilled} / ${plan.capacity}`;
+  const priceLabel = plan.costTotal > 0 ? `₹${plan.costPerPerson} / person` : "Free";
+  const capacityLabel = plan.capacity === 0 ? "Unlimited" : `${plan.spotsFilled} / ${plan.capacity}`;
   const isFull = plan.capacity > 0 && plan.spotsFilled >= plan.capacity;
 
   const isMemberOfPlan = role === "host" || role === "participant";
@@ -395,8 +385,7 @@ export default function PlanDetailScreen() {
   else if (role === "pending") cta = "Request pending…";
   else if (role === "waitlist") cta = "On waitlist";
   else if (isFull) cta = "Join Waitlist";
-  else if (plan.approvalMode === "manual" || plan.approvalMode === "paid_manual")
-    cta = "Request to Join";
+  else if (plan.approvalMode === "manual" || plan.approvalMode === "paid_manual") cta = "Request to Join";
   else if (plan.costTotal > 0) cta = `Join & Pay ₹${plan.costPerPerson}`;
 
   const showInviteBtn = role === "host" || role === "participant";
@@ -536,7 +525,6 @@ export default function PlanDetailScreen() {
             </View>
           </View>
 
-          {/* UPDATED: Generic Requirements Section */}
           {(plan.requirements.verifiedOnly ||
             plan.requirements.womenOnly ||
             plan.requirements.minGuestScore != null ||
@@ -899,6 +887,12 @@ export default function PlanDetailScreen() {
       <InvitePromptModal
         visible={showInvitePrompt}
         onClose={() => setShowInvitePrompt(false)}
+      />
+
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        onHide={() => setToastVisible(false)}
       />
     </SafeAreaView>
   );

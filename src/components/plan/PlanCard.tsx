@@ -5,6 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Plan } from '../../types/plan';
 import { useTheme } from '../../theme/ThemeContext';
 import { Spacing, Typography } from '../../constants/theme';
+import TrustBadge from "../common/TrustBadge";
+
+// Define the platform median for Host Score (e.g., 4.5 out of 5)
+const MEDIAN_HOST_SCORE = 4.5;
 
 type Props = {
   plan: Plan;
@@ -14,16 +18,25 @@ type Props = {
 export default function PlanCard({ plan, onPress }: Props) {
   const { colors } = useTheme();
 
-  // Fallbacks safely check types without throwing TS errors
-  const venue = (plan as any).venue || plan.city || 'Location TBD';
-  const dateStr = (plan as any).dateString || (plan as any).date || 'Upcoming';
-  const attendeesCount = (plan as any).attendeesCount || 0;
+  const venue = plan.locationName || plan.city || 'Location TBD';
+  const dateStr = plan.startTime ? new Date(plan.startTime.toDate()).toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }) : 'Upcoming';
+  const attendeesCount = plan.spotsFilled || 0;
+
+  const hostScore = plan.hostScore ?? 0;
+  const hostStreak = plan.hostStreak ?? 0;
+  
+  // Determine if the host has any trust data to display
+  const hasTrustData = plan.hostVerified || hostScore > 0 || hostStreak > 0;
 
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
+      style={[styles.card, { backgroundColor: colors.bgElevated }]}
       onPress={onPress}
-      style={[styles.card, { backgroundColor: colors.bgSubtle }]}
+      activeOpacity={0.8}
     >
       {/* Header Row */}
       <View style={styles.headerRow}>
@@ -31,16 +44,37 @@ export default function PlanCard({ plan, onPress }: Props) {
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
             {plan.title || 'Untitled Plan'}
           </Text>
-          <Text style={[styles.activity, { color: colors.primary }]}>
+          
+          {/* Host Row */}
+          <View style={styles.hostRow}>
+            <Text style={[styles.hostName, { color: colors.textSecondary }]}>
+              by {plan.hostName}
+            </Text>
+            
+            {hasTrustData ? (
+              <View style={styles.badgeRow}>
+                {plan.hostVerified && <TrustBadge type="verified" size="sm" />}
+                {hostScore > MEDIAN_HOST_SCORE && (
+                  <TrustBadge type="host_score" value={hostScore} size="sm" />
+                )}
+              </View>
+            ) : (
+              <Text style={[styles.newHostText, { color: colors.textMuted }]}>
+                New host
+              </Text>
+            )}
+          </View>
+
+          <Text style={[styles.activity, { color: colors.textMuted }]}>
             {plan.activity?.toUpperCase()}
           </Text>
         </View>
-        
+
         {/* Attendees Pill */}
         {attendeesCount > 0 && (
-          <View style={[styles.attendeePill, { backgroundColor: colors.bg }]}>
-            <Ionicons name="people" size={12} color={colors.textSecondary} />
-            <Text style={[styles.attendeeText, { color: colors.textSecondary }]}>
+          <View style={[styles.attendeePill, { backgroundColor: colors.bgSubtle }]}>
+            <Ionicons name="people" size={14} color={colors.primary} />
+            <Text style={[styles.attendeeText, { color: colors.primary }]}>
               {attendeesCount}
             </Text>
           </View>
@@ -50,18 +84,22 @@ export default function PlanCard({ plan, onPress }: Props) {
       {/* Details Row */}
       <View style={styles.detailsContainer}>
         <View style={styles.detailItem}>
-          <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-          <Text style={[styles.detailText, { color: colors.textSecondary }]} numberOfLines={1}>
+          <Ionicons name="location-outline" size={16} color={colors.textMuted} />
+          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
             {venue}
           </Text>
         </View>
-        
         <View style={styles.detailItem}>
-          <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+          <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
           <Text style={[styles.detailText, { color: colors.textSecondary }]}>
             {dateStr}
           </Text>
         </View>
+        
+        {/* Streak Flame in Metadata Row */}
+        {hostStreak > 0 && (
+          <TrustBadge type="streak" value={hostStreak} size="sm" />
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -72,7 +110,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.md,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
-    // Native-feeling soft shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -91,6 +128,26 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.headline,
+  },
+  hostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  hostName: {
+    ...Typography.subhead,
+    fontWeight: '600',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  newHostText: {
+    ...Typography.caption,
+    fontStyle: 'italic',
   },
   activity: {
     ...Typography.label,

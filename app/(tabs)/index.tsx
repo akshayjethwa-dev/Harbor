@@ -31,9 +31,12 @@ import { announce } from '../../src/lib/a11y';
 import LocationPickerModal from '../../src/components/common/LocationPickerModal';
 import { updateUserCity } from '../../src/services/userService';
 
+// NEW: Import the Today's Picks and Quiz Prompt components
+import TodayPicksSection from "../../src/components/discover/TodayPicksSection";
+import QuizPromptChip from "../../src/components/discover/QuizPromptChip";
+
 export default function DiscoverScreen() {
   const router = useRouter();
-  // ✅ FIXED: Removed `refreshUser` as it doesn't exist in AuthContextType
   const { user } = useAuth(); 
   const { colors } = useTheme();
 
@@ -49,7 +52,6 @@ export default function DiscoverScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState<AppError[]>([]);
-  
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [localCity, setLocalCity] = useState<string | undefined>(user?.city);
   const [updatingCity, setUpdatingCity] = useState(false);
@@ -126,7 +128,6 @@ export default function DiscoverScreen() {
     try {
       await updateUserCity(user.uid, newCity);
       announce(`Location changed to ${newCity}`);
-      // ✅ Removed refreshUser() call here
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to update city');
       setLocalCity(user.city); 
@@ -182,6 +183,12 @@ export default function DiscoverScreen() {
           onCreate={hasSquad ? goCreatePlan : goCreateSquad}
           onDismiss={dismissPrompt}
         />
+
+        {/* NEW: Vibe Quiz Prompt Chip */}
+        <QuizPromptChip />
+
+        {/* Today's Picks Section */}
+        <TodayPicksSection />
 
         <CategoryPills
           selected={selectedCategory}

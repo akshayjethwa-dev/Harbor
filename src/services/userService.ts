@@ -1,5 +1,5 @@
 // src/services/userService.ts
-import { db } from "../lib/firebase";
+import { db, storage } from "../lib/firebase";
 import {
   doc,
   getDoc,
@@ -10,7 +10,12 @@ import {
   where,
   getDocs,
   documentId,
+  arrayUnion,
+  arrayRemove,
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as ImagePicker from "expo-image-picker";
+import { Alert } from "react-native";
 import {
   GarbaCrewUser,
   AvailabilityMap,
@@ -72,10 +77,110 @@ export async function getUserProfile(
   return null;
 }
 
+/**
+ * General update function to save text fields.
+ */
+export async function updateUserProfile(
+  uid: string,
+  data: Partial<GarbaCrewUser>
+): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// ─────────────────────────────────────────────
+// Photo Uploads
+// ─────────────────────────────────────────────
+/**
+ * Allows the user to pick an image from their gallery, upload it to Firebase Storage,
+ * and append it to their profile's `photos` array.
+ */
+export async function addProfilePhoto(uid: string): Promise<string | null> {
+  try {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert("Permission required", "Please allow access to your photos.");
+      return null;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 5],
+      quality: 0.7,
+    });
+
+    if (result.canceled || !result.assets[0]) return null;
+
+    const uri = result.assets[0].uri;
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    
+    // Create reference
+    const storageRef = ref(storage, `users/${uid}/photos/${Date.now()}.jpg`);
+    
+    // ✅ Added contentType metadata to ensure Firebase Storage handles it as an image
+    await uploadBytes(storageRef, blob, { contentType: "image/jpeg" });
+    const downloadUrl = await getDownloadURL(storageRef);
+
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      const updates: any = {
+        photos: arrayUnion(downloadUrl),
+      };
+      
+      if (!userData.photoUrl) {
+        updates.photoUrl = downloadUrl;
+      }
+      
+      await updateDoc(userRef, updates);
+    }
+
+    return downloadUrl;
+  } catch (error: any) {
+    console.error("Error uploading photo:", error);
+    Alert.alert("Upload failed", error.message || "Check your storage rules.");
+    return null;
+  }
+}
+
+/**
+ * Removes a photo from the user's `photos` array.
+ * If the removed photo is the primary `photoUrl`, it promotes the next available photo.
+ */
+export async function removeProfilePhoto(uid: string, photoUrl: string): Promise<void> {
+  try {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) return;
+    
+    const userData = userSnap.data() as GarbaCrewUser;
+    const updates: any = {
+      photos: arrayRemove(photoUrl),
+    };
+
+    if (userData.photoUrl === photoUrl) {
+      const remainingPhotos = (userData.photos || []).filter((p) => p !== photoUrl);
+      updates.photoUrl = remainingPhotos.length > 0 ? remainingPhotos[0] : null;
+    }
+
+    await updateDoc(userRef, updates);
+  } catch (error: any) {
+    console.error("Error removing photo:", error);
+    Alert.alert("Error", "Could not remove photo. Please try again.");
+  }
+}
+
 // ─────────────────────────────────────────────
 // Task 1: General Availability
 // ─────────────────────────────────────────────
-
 export async function updateUserAvailability(
   uid: string,
   availability: AvailabilityMap,

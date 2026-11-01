@@ -1,4 +1,5 @@
-import React from "react";
+// src/components/partner/MatchModal.tsx
+import React, { useEffect } from "react";
 import {
   Modal,
   View,
@@ -7,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
 } from "react-native";
+import { announce } from "../../lib/a11y";
 
 interface Props {
   visible: boolean;
@@ -27,6 +29,17 @@ export default function MatchModal({
   onClose,
   onSayHi,
 }: Props) {
+  // Screen-reader announcement when the modal opens
+  useEffect(() => {
+    if (visible) {
+      // Delay slightly so the modal is fully mounted before the screen reader interrupts
+      const timer = setTimeout(() => {
+        announce(`It’s a match with ${otherName}. Say hi to get started.`);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, otherName]);
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>

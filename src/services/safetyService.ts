@@ -13,10 +13,10 @@ import {
   limit,
   serverTimestamp,
   Timestamp,
-  writeBatch, // <-- Added for bulk save
+  writeBatch,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import * as Location from "expo-location"; 
+import * as Location from "expo-location";
 import { db, storage } from "../lib/firebase";
 import { GarbaCrewUser } from "../types/user";
 import {
@@ -35,7 +35,7 @@ import {
 } from "../types/safety";
 
 // ─────────────────────────────────────────────────────────
-// Task 39: Location Helper with Fallback
+// Location Helper
 // ─────────────────────────────────────────────────────────
 export async function getSOSLocation(): Promise<{ lat: number | null, lng: number | null, acc: number | null, isLastKnown: boolean }> {
   try {
@@ -255,9 +255,6 @@ export async function removeEmergencyContact(
   await deleteDoc(doc(db, "users", uid, "emergencyContacts", contactId));
 }
 
-/**
- * Task 39: Bulk save emergency contacts (replaces existing)
- */
 export async function saveEmergencyContacts(
   uid: string,
   contacts: EmergencyContact[]
@@ -265,13 +262,11 @@ export async function saveEmergencyContacts(
   const batch = writeBatch(db);
   const colRef = collection(db, "users", uid, "emergencyContacts");
   
-  // 1. Delete existing contacts
   const existingSnap = await getDocs(query(colRef));
   existingSnap.forEach((docSnap) => {
     batch.delete(docSnap.ref);
   });
 
-  // 2. Add the new contacts
   contacts.forEach((c) => {
     const newRef = doc(colRef, c.id);
     batch.set(newRef, {
@@ -294,7 +289,10 @@ export async function blockUser(
   reason?: string
 ): Promise<void> {
   const id = `${me.uid}_${target.uid}`;
-  await setDoc(doc(db, "blocks", id), {
+  const batch = writeBatch(db);
+
+  // 1. Record the block
+  batch.set(doc(db, "blocks", id), {
     blockerUid: me.uid,
     blockedUid: target.uid,
     blockedName: target.name,
@@ -302,6 +300,14 @@ export async function blockUser(
     reason: reason ?? "",
     createdAt: serverTimestamp(),
   });
+
+  // 2. Sever any existing partner match
+  const sorted = [me.uid, target.uid].sort();
+  const partnerMatchId = `${sorted[0]}_${sorted[1]}`;
+  batch.delete(doc(db, "partnerMatches", partnerMatchId));
+  batch.delete(doc(db, "chats", `direct_${partnerMatchId}`));
+
+  await batch.commit();
 }
 
 export async function unblockUser(meUid: string, targetUid: string): Promise<void> {

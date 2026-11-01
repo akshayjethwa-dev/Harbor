@@ -1,6 +1,8 @@
+// src/services/partnerService.ts
 import {
   collection,
   doc,
+  addDoc,
   getDoc,
   getDocs,
   setDoc,
@@ -11,6 +13,8 @@ import {
   limit,
   serverTimestamp,
   Timestamp,
+  startAfter,
+  QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { GarbaCrewUser } from "../types/user";
@@ -21,6 +25,7 @@ import {
   SwipeDirection,
   MATCH_FIRST_MESSAGE_HOURS,
 } from "../types/partner";
+import { createChatIfAllowed } from "./chatGateService";
 
 // ─────────────────────────────────────────────────────────
 // Candidate fetching
@@ -30,9 +35,6 @@ export async function getPartnerCandidates(
   filters: PartnerFilters,
   max: number = 30
 ): Promise<PartnerCandidate[]> {
-  // Step 1: fetch a broad set of partner-enabled users in my city
-  // (firestore can't combine lookingForPartner + age range + city without
-  // a lot of composite indexes, so we filter client-side)
   const q = query(
     collection(db, "users"),
     where("lookingForPartner", "==", true),
@@ -42,7 +44,6 @@ export async function getPartnerCandidates(
 
   const snap = await getDocs(q);
 
-  // Step 2: fetch my existing swipes so we can exclude them
   const swipesSnap = await getDocs(
     query(
       collection(db, "partnerSwipes"),
@@ -53,7 +54,6 @@ export async function getPartnerCandidates(
     swipesSnap.docs.map((d) => (d.data() as any).toUid as string)
   );
 
-  // Step 3: fetch my matches
   const matchesSnap = await getDocs(
     query(
       collection(db, "partnerMatches"),
@@ -67,7 +67,7 @@ export async function getPartnerCandidates(
       .filter(Boolean) as string[]
   );
 
-  // Step 4: filter candidates
+  const myActivities = me.activities || [];
   const candidates: PartnerCandidate[] = [];
 
   snap.docs.forEach((d) => {
@@ -78,28 +78,23 @@ export async function getPartnerCandidates(
     if (matchedUids.has(u.uid)) return;
     if (!u.age || !u.gender) return;
 
-    // Gender filter
     if (filters.gender !== "any" && u.gender !== filters.gender) return;
-
-    // Age range
     if (u.age < filters.ageMin || u.age > filters.ageMax) return;
-
-    // City filter
     if (filters.city && u.city !== filters.city) return;
-
-    // Verified only
     if (filters.verifiedOnly && !u.isVerified) return;
-
-    // Vibe filter
     if (filters.vibe && u.partnerVibe !== filters.vibe) return;
 
-    // Activities — at least one overlap
+    const candidateActivities = u.activities || [];
+    
     if (filters.activities.length > 0) {
-      const overlap = (u.activities ?? []).filter((a) =>
+      const overlap = candidateActivities.filter((a) =>
         filters.activities.includes(a)
       );
       if (overlap.length === 0) return;
     }
+
+    // Calculate shared activities between the viewer and the candidate
+    const shared = candidateActivities.filter((a) => myActivities.includes(a));
 
     candidates.push({
       uid: u.uid,
@@ -109,10 +104,13 @@ export async function getPartnerCandidates(
       photoUrl: u.photoUrl ?? null,
       city: u.city ?? "",
       bio: u.bio,
-      activities: u.activities,
-      vibeScore: u.vibeScore,
+      activities: candidateActivities,
+      vibeScore: (u as any).vibeScore || 0, 
       partnerVibe: u.partnerVibe,
       isVerified: u.isVerified ?? false,
+      // Map trust balance and shared activities
+      trustBalance: (u as any).trustBalance ?? 50, 
+      sharedActivities: shared,
     });
   });
 
@@ -137,10 +135,8 @@ export async function recordSwipe(
     createdAt: serverTimestamp(),
   });
 
-  // A super like always counts as a "right" swipe for matching purposes
   if (direction === "left") return { matched: false };
 
-  // Check for reciprocal swipe
   const reverseId = `${targetUid}_${me.uid}`;
   const reverseSnap = await getDoc(doc(db, "partnerSwipes", reverseId));
   if (!reverseSnap.exists()) return { matched: false };
@@ -148,17 +144,20 @@ export async function recordSwipe(
   const reverse = reverseSnap.data() as any;
   if (reverse.direction === "left") return { matched: false };
 
-  // Match! Create a match doc.
+  // Match! But first check the chat gate (blocks/reports)
+  const chatResult = await createChatIfAllowed(me.uid, targetUid);
+  if (!chatResult.success || !chatResult.chatId) {
+    return { matched: false };
+  }
+
   const sorted = [me.uid, targetUid].sort();
   const matchId = `${sorted[0]}_${sorted[1]}`;
 
-  // Check if already exists
   const existing = await getDoc(doc(db, "partnerMatches", matchId));
   if (existing.exists()) {
     return { matched: true, matchId };
   }
 
-  // Fetch target user for denormalization
   const targetSnap = await getDoc(doc(db, "users", targetUid));
   const target = targetSnap.exists()
     ? (targetSnap.data() as GarbaCrewUser)
@@ -172,7 +171,7 @@ export async function recordSwipe(
 
   await setDoc(doc(db, "partnerMatches", matchId), {
     users: sorted,
-    // Denormalized for quick rendering by both sides
+    chatId: chatResult.chatId,
     [`profiles.${me.uid}`]: {
       name: me.name ?? "Someone",
       photoUrl: me.photoUrl ?? null,
@@ -193,6 +192,49 @@ export async function recordSwipe(
   });
 
   return { matched: true, matchId };
+}
+
+// ─────────────────────────────────────────────────────────
+// Say Hi (Browse Mode Mutual Opt-In)
+// ─────────────────────────────────────────────────────────
+export async function sendSayHi(
+  me: GarbaCrewUser,
+  targetUid: string
+): Promise<{ matched: boolean; chatId?: string }> {
+  const sayHiId = `${me.uid}_${targetUid}`;
+  await setDoc(doc(db, "partnerSayHi", sayHiId), {
+    fromUid: me.uid,
+    toUid: targetUid,
+    createdAt: serverTimestamp(),
+  });
+
+  // Check for a reciprocal say hi within the last 7 days
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const reverseSnap = await getDoc(doc(db, "partnerSayHi", `${targetUid}_${me.uid}`));
+
+  if (reverseSnap.exists()) {
+    const reverseData = reverseSnap.data();
+    // Handle Firestore Timestamp conversion safely
+    const reverseTime = reverseData.createdAt?.toDate?.() || new Date(0);
+
+    if (reverseTime >= sevenDaysAgo) {
+      // Mutual! Create a chat using the gate service
+      const chatResult = await createChatIfAllowed(me.uid, targetUid);
+      if (chatResult.success && chatResult.chatId) {
+        return { matched: true, chatId: chatResult.chatId };
+      }
+    }
+  }
+
+  return { matched: false };
+}
+
+export async function hasSaidHi(
+  meUid: string,
+  targetUid: string
+): Promise<boolean> {
+  const snap = await getDoc(doc(db, "partnerSayHi", `${meUid}_${targetUid}`));
+  return snap.exists();
 }
 
 // ─────────────────────────────────────────────────────────
@@ -227,7 +269,6 @@ export async function getMyMatches(uid: string): Promise<PartnerMatch[]> {
     };
   });
 
-  // Sort client-side (most recent message first, then most recent match)
   matches.sort((a, b) => {
     const aT = a.lastMessageAt?.toMillis?.() ?? a.matchedAt?.toMillis?.() ?? 0;
     const bT = b.lastMessageAt?.toMillis?.() ?? b.matchedAt?.toMillis?.() ?? 0;
@@ -244,7 +285,7 @@ export async function getMatchById(matchId: string): Promise<PartnerMatch | null
   return {
     id: snap.id,
     users: data.users,
-    otherUid: "", // caller sets
+    otherUid: "",
     otherName: "",
     otherPhotoUrl: null,
     otherGender: "other",
@@ -267,14 +308,13 @@ export function canISendFirstMessage(
   myGender: "male" | "female" | "other"
 ): { allowed: boolean; reason?: string } {
   if (match.firstMessageBy) {
-    return { allowed: true }; // first message already sent; either can now chat
+    return { allowed: true };
   }
 
   if (match.status === "expired") {
     return { allowed: false, reason: "This match has expired." };
   }
 
-  // Gender rule: women message first in mixed-gender matches
   if (myGender === "male" && match.otherGender === "female") {
     return {
       allowed: false,
@@ -301,7 +341,6 @@ export async function sendMatchMessage(
   if (!matchSnap.exists()) throw new Error("Match not found");
   const match = matchSnap.data() as any;
 
-  // Add message to subcollection
   const msgRef = doc(collection(db, "partnerMatches", matchId, "messages"));
   await setDoc(msgRef, {
     fromUid: me.uid,
@@ -309,7 +348,6 @@ export async function sendMatchMessage(
     createdAt: serverTimestamp(),
   });
 
-  // Update match summary
   const updates: any = {
     lastMessage: trimmed.length > 60 ? trimmed.slice(0, 60) + "…" : trimmed,
     lastMessageAt: serverTimestamp(),

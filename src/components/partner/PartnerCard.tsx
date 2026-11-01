@@ -1,12 +1,17 @@
+// src/components/partner/PartnerCard.tsx
 import React from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { PartnerCandidate } from "../../types/partner";
 import { getPartnerVibe } from "../../constants/partnerVibes";
 import { getActivityMeta } from "../../constants/activities";
 import { PlanActivity } from "../../types/plan";
+import TrustBadge from "../common/TrustBadge";
 
 export default function PartnerCard({ candidate }: { candidate: PartnerCandidate }) {
   const vibe = getPartnerVibe(candidate.partnerVibe);
+
+  // Extract up to 2 shared activities
+  const sharedActivities = candidate.sharedActivities || [];
 
   return (
     <View style={styles.card}>
@@ -21,9 +26,10 @@ export default function PartnerCard({ candidate }: { candidate: PartnerCandidate
           </View>
         )}
 
+        {/* Verification Tick (Overlaid) */}
         {candidate.isVerified && (
           <View style={styles.verifiedBadge}>
-            <Text style={styles.verifiedText}>✅ Verified</Text>
+            <TrustBadge type="verified" size="md" />
           </View>
         )}
 
@@ -41,6 +47,15 @@ export default function PartnerCard({ candidate }: { candidate: PartnerCandidate
           <Text style={styles.name}>
             {candidate.name}, {candidate.age}
           </Text>
+          
+          {/* Trust Chip */}
+          {candidate.trustBalance !== undefined && (
+            <TrustBadge 
+              type="trust_score" 
+              value={candidate.trustBalance} 
+              size="sm" 
+            />
+          )}
         </View>
 
         <Text style={styles.city}>📍 {candidate.city}</Text>
@@ -51,9 +66,30 @@ export default function PartnerCard({ candidate }: { candidate: PartnerCandidate
           </Text>
         ) : null}
 
+        {/* Shared Activities (Mutual Interests) */}
+        {sharedActivities.length > 0 && (
+          <View style={styles.sharedContainer}>
+            <Text style={styles.sharedLabel}>Shared interests:</Text>
+            <View style={styles.chipRow}>
+              {sharedActivities.slice(0, 2).map((a) => {
+                const meta = getActivityMeta(a as PlanActivity);
+                return (
+                  <View key={a} style={styles.sharedChip}>
+                    <Text style={styles.sharedChipText}>
+                      {meta.emoji} {meta.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Standard Activities */}
         {candidate.activities && candidate.activities.length > 0 && (
           <View style={styles.chipRow}>
             {candidate.activities.slice(0, 4).map((a) => {
+              if (sharedActivities.includes(a)) return null;
               const meta = getActivityMeta(a as PlanActivity);
               return (
                 <View key={a} style={styles.chip}>
@@ -63,13 +99,6 @@ export default function PartnerCard({ candidate }: { candidate: PartnerCandidate
                 </View>
               );
             })}
-            {candidate.activities.length > 4 && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>
-                  +{candidate.activities.length - 4}
-                </Text>
-              </View>
-            )}
           </View>
         )}
       </View>
@@ -97,17 +126,16 @@ const styles = StyleSheet.create({
   verifiedBadge: {
     position: "absolute",
     top: 12,
-    left: 12,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    right: 12,
+    // Added a subtle white background behind the badge so it pops on photos
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderRadius: 14,
+    padding: 2,
   },
-  verifiedText: { fontSize: 12, fontWeight: "700", color: "#2E7D32" },
   vibeBadge: {
     position: "absolute",
     top: 12,
-    right: 12,
+    left: 12,
     backgroundColor: "rgba(233,30,99,0.95)",
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -115,16 +143,37 @@ const styles = StyleSheet.create({
   },
   vibeText: { fontSize: 12, fontWeight: "700", color: "#FFF" },
   body: { padding: 18 },
-  nameRow: { flexDirection: "row", alignItems: "center" },
-  name: { fontSize: 22, fontWeight: "800", color: "#1A1A1A" },
+  nameRow: { 
+    flexDirection: "row", 
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  name: { fontSize: 22, fontWeight: "800", color: "#1A1A1A", flex: 1, marginRight: 8 },
   city: { fontSize: 13, color: "#666", marginTop: 4 },
   bio: { fontSize: 14, color: "#444", marginTop: 10, lineHeight: 20 },
+  sharedContainer: {
+    marginTop: 12,
+  },
+  sharedLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#888",
+    marginBottom: 6,
+  },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: 12,
   },
+  sharedChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: "#FFF0F5",
+    borderWidth: 1,
+    borderColor: "#F8BBD0",
+  },
+  sharedChipText: { fontSize: 12, color: "#E91E63", fontWeight: "700" },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 5,

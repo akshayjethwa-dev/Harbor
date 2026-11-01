@@ -50,7 +50,9 @@ export type NotificationKind =
   | "poll_created"
   | "poll_closed"
   | "poll_expired_no_votes"
-  | "poll_needs_new";
+  | "poll_needs_new"
+  // ── Task: Post-Plan Opt-In ──
+  | "plan_opt_in_match";
 
 // ─────────────────────────────────────────────────────────
 // Android notification channels
@@ -82,6 +84,13 @@ export async function setupNotificationChannels(): Promise<void> {
     name: "Date polls",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 150, 100, 150],
+    lightColor: "#E91E63",
+  });
+  // ── Task: Post-Plan Opt-In ──
+  await Notifications.setNotificationChannelAsync("matches", {
+    name: "New connections",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 100, 250],
     lightColor: "#E91E63",
   });
 }
@@ -242,7 +251,19 @@ function routeFromNotification(data: any): void {
             router.push(`/plan/chat/${chatId.replace("plan_", "")}` as any);
           } else if (chatId.startsWith("squad_")) {
             router.push(`/squad/${chatId.replace("squad_", "")}` as any);
+          } else {
+            // Fallback for direct chat IDs
+            router.push(`/plan/chat/${chatId}` as any);
           }
+        }
+        break;
+
+      // ── Task: Post-Plan Opt-In Match ──
+      case "plan_opt_in_match":
+        if (chatId) {
+          router.push(`/plan/chat/${chatId}` as any);
+        } else if (planId) {
+          router.push(`/plan/${planId}` as any);
         }
         break;
 

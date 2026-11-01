@@ -1,3 +1,4 @@
+// src/types/partner.ts
 import { Timestamp } from "firebase/firestore";
 
 export type SwipeDirection = "left" | "right" | "super";
@@ -18,6 +19,8 @@ export interface PartnerCandidate {
   isVerified: boolean;
   distanceKm?: number;
   mutualActivities?: string[];
+  trustBalance?: number;
+  sharedActivities?: string[];
 }
 
 export interface PartnerSwipe {
@@ -27,10 +30,16 @@ export interface PartnerSwipe {
   createdAt: Timestamp | any;
 }
 
+export interface PartnerSayHi {
+  fromUid: string;
+  toUid: string;
+  createdAt: Timestamp | any;
+}
+
 export interface PartnerMatch {
   id: string;
-  users: [string, string];    // sorted alphabetically
-  otherUid: string;           // denormalized for current user
+  users: [string, string];
+  otherUid: string;
   otherName: string;
   otherPhotoUrl: string | null;
   otherGender: "male" | "female" | "other";
