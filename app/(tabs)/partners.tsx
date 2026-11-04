@@ -26,7 +26,6 @@ import { usePartnerFiltersStore } from "../../src/store/partnerFiltersStore";
 import { PartnerCandidate } from "../../src/types/partner";
 import PartnerCard from "../../src/components/partner/PartnerCard";
 import PartnerListCard from "../../src/components/partner/PartnerListCard";
-import SegmentedControl from "../../src/components/common/SegmentedControl";
 import PartnerActivityFilterRow from "../../src/components/partner/PartnerActivityFilterRow";
 import MatchModal from "../../src/components/partner/MatchModal";
 import FiltersSheet from "../../src/components/partner/FiltersSheet";
@@ -55,6 +54,42 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.bgElevated,
     },
     filterBtnText: { fontSize: 13, color: c.text, fontWeight: "700" },
+    
+    // INLINE SEGMENTED CONTROL STYLES
+    toggleContainer: {
+      flexDirection: "row",
+      marginHorizontal: 24,
+      marginBottom: 16,
+      backgroundColor: c.bgSubtle,
+      borderRadius: 12,
+      padding: 4,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    toggleBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: "center",
+      borderRadius: 8,
+    },
+    toggleBtnActive: {
+      backgroundColor: c.bg,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    toggleText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: c.textMuted,
+    },
+    toggleTextActive: {
+      fontWeight: "800",
+      color: c.text,
+    },
+
     deckWrap: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
     actionRow: {
       flexDirection: "row",
@@ -280,6 +315,7 @@ export default function PartnersScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Partners</Text>
         <TouchableOpacity
@@ -290,16 +326,30 @@ export default function PartnersScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Segmented Control */}
-      <SegmentedControl
-        options={[
-          { label: "Swipe", value: "swipe" },
-          { label: "Browse", value: "browse" },
-        ]}
-        selectedValue={viewMode}
-        onSelect={(val) => setViewMode(val as "swipe" | "browse")}
-      />
+      {/* INLINE SEGMENTED CONTROL (ALWAYS VISIBLE) */}
+      <View style={styles.toggleContainer}>
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === "swipe" && styles.toggleBtnActive]}
+          onPress={() => setViewMode("swipe")}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.toggleText, viewMode === "swipe" && styles.toggleTextActive]}>
+            Swipe
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewMode === "browse" && styles.toggleBtnActive]}
+          onPress={() => setViewMode("browse")}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.toggleText, viewMode === "browse" && styles.toggleTextActive]}>
+            Browse
+          </Text>
+        </TouchableOpacity>
+      </View>
 
+      {/* Content Area */}
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -307,7 +357,6 @@ export default function PartnersScreen() {
       ) : viewMode === "browse" ? (
         // ─── Browse View ───
         <View style={{ flex: 1 }}>
-          {/* New Filter Chip Row */}
           <PartnerActivityFilterRow />
 
           <FlatList
@@ -356,7 +405,7 @@ export default function PartnersScreen() {
         </View>
       ) : (
         // ─── Swipe View: Card ───
-        <>
+        <View style={{ flex: 1 }}>
           <View style={styles.deckWrap}>
             <PartnerCard candidate={current} />
           </View>
@@ -381,7 +430,7 @@ export default function PartnersScreen() {
               <Text style={styles.likeIcon}>❤️</Text>
             </TouchableOpacity>
           </View>
-        </>
+        </View>
       )}
 
       <MatchModal

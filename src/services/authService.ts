@@ -1,3 +1,4 @@
+// src/services/authService.ts
 import {
   PhoneAuthProvider,
   signInWithCredential,
@@ -82,23 +83,41 @@ export async function signInWithGoogleWeb(): Promise<{
       message: error.message,
     });
 
+    // Handle User Cancellation gracefully
     if (error.code === "auth/popup-closed-by-user") {
       return {
         user: null,
         isNewUser: false,
         needsPhone: false,
-        error: "Sign-in cancelled",
+        error: "cancelled", // UI will intercept this and do nothing
       };
     }
+
+    // Handle Browser Popup Blockers (fallback to redirect)
     if (error.code === "auth/popup-blocked") {
-      return {
-        user: null,
-        isNewUser: false,
-        needsPhone: false,
-        error:
-          "Your browser blocked the sign-in popup. Allow popups for this site and try again.",
-      };
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { signInWithRedirect } = require("firebase/auth");
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        
+        await signInWithRedirect(auth, provider);
+        return {
+          user: null,
+          isNewUser: false,
+          needsPhone: false,
+          error: "redirecting", // Page will redirect
+        };
+      } catch (redirectError) {
+        return {
+          user: null,
+          isNewUser: false,
+          needsPhone: false,
+          error: "Your browser blocked the popup. Please allow popups and try again.",
+        };
+      }
     }
+
     return {
       user: null,
       isNewUser: false,

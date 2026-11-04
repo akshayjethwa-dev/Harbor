@@ -40,10 +40,13 @@ export default function GoogleSignInButton() {
     needsPhone?: boolean;
     error?: string;
   }) => {
+    // If there was a specific error, show an alert
     if (!result.user) {
       Alert.alert("Error", result.error ?? "Google sign-in failed");
       return;
     }
+    
+    // User exists, proceed with routing
     if (result.needsPhone) {
       Alert.alert(
         "Phone Required",
@@ -96,6 +99,14 @@ export default function GoogleSignInButton() {
     setLoading(true);
     const result = await signInWithGoogleWeb();
     setLoading(false);
+
+    // ✅ INTERCEPT GRACEFUL EXITS
+    if (result.error === "cancelled" || result.error === "redirecting") {
+      // The user cancelled the popup OR the browser blocked it and we fell back to redirect.
+      // We do not show an error alert in these cases.
+      return;
+    }
+
     handleResult(result);
   };
 
