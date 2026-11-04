@@ -117,7 +117,15 @@ export { autoResolveDisputes, onDisputeResolved } from "./expenseDisputes";
 export { onCommentCreated } from "./comments";
 
 // ─── Task 36: Attendance & No-Shows ───
-export { onAttendanceMarked, autoMarkAttendance } from "./attendance";
+export { 
+  onAttendanceMarked, 
+  autoFinalizeAttendance // ✅ FIXED: Changed from autoMarkAttendance
+} from "./attendance";
+
+export { 
+  scheduleCuratedEvents, 
+  assignFacilitator 
+} from "./curatedEvents";
 
 // ─── Task 37: Profile Reports ───
 export { onProfileReportCreated, onReportResolved } from "./profileReports";

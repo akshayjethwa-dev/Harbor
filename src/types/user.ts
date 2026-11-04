@@ -43,6 +43,7 @@ export interface AppUser {
   photos?: string[]; // <-- NEW: Array for multiple photos
   createdAt: Date;
   profileComplete: boolean;
+  primary_intent?: "host" | "join" | "meet";
 
   // ─── Profile fields (Epic 1) ───
   name?: string;

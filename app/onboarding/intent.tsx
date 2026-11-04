@@ -1,5 +1,5 @@
 // app/onboarding/intent.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,12 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '../../src/lib/firebase'; // Ensure this path matches your project
+import { db, auth } from '../../src/lib/firebase';
 import { useTheme } from '../../src/theme/ThemeContext';
+import {
+  incrementIntentAbandonCount,
+  resetIntentAbandonCount,
+} from '../../src/lib/onboarding';
 
 type Intent = 'host' | 'join' | 'meet';
 
@@ -42,18 +46,27 @@ export default function IntentSelectionScreen() {
   const { colors } = useTheme();
   const [selectedIntent, setSelectedIntent] = useState<Intent | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [abandonCount, setAbandonCount] = useState(0);
+
+  // Track abandonment on mount
+  useEffect(() => {
+    const trackAbandonment = async () => {
+      const count = await incrementIntentAbandonCount();
+      setAbandonCount(count);
+    };
+    trackAbandonment();
+  }, []);
 
   const handleSelectIntent = (intent: Intent) => {
-    if (isConfirming) return;
+    if (isConfirming) return; // Prevent selection changes during confirmation
     setSelectedIntent(intent);
   };
 
   const handleConfirm = async () => {
     if (!selectedIntent || isConfirming) return;
-
     setIsConfirming(true);
+    
     const user = auth.currentUser;
-
     if (!user) {
       Alert.alert('Error', 'User not authenticated.');
       setIsConfirming(false);
@@ -61,21 +74,22 @@ export default function IntentSelectionScreen() {
     }
 
     try {
-      // 1. Persist the user's primary intent to Firestore.
+      // 1. Persist the user's primary intent to Firestore
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { primary_intent: selectedIntent });
 
-      // 2. Route to the correct destination based on the choice.
+      // 2. Reset the abandonment counter on success
+      await resetIntentAbandonCount();
+
+      // 3. Route to the correct destination based on the choice
       switch (selectedIntent) {
         case 'host':
           router.replace('/plan/create' as any);
           break;
         case 'join':
-          // Discover screen (index) handles the location prompt in context.
           router.replace('/(tabs)' as any);
           break;
         case 'meet':
-          // Pass a param to pre-enable the partner mode toggle.
           router.replace('/(tabs)/partners?partnerMode=true' as any);
           break;
       }
@@ -86,10 +100,18 @@ export default function IntentSelectionScreen() {
     }
   };
 
+  const handleSkip = () => {
+    // Route to Discover without saving intent.
+    // The Discover screen will show a banner prompting them to set it later.
+    router.replace('/(tabs)' as any);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>What brings you to Harbor?</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          What brings you to Harbor?
+        </Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Choose your primary goal so we can tailor your experience from the start.
         </Text>
@@ -109,7 +131,9 @@ export default function IntentSelectionScreen() {
             >
               <Text style={styles.cardIcon}>{option.icon}</Text>
               <View style={styles.cardTextContainer}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>{option.title}</Text>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                  {option.title}
+                </Text>
                 <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
                   {option.description}
                 </Text>
@@ -139,6 +163,13 @@ export default function IntentSelectionScreen() {
             </Text>
           )}
         </TouchableOpacity>
+
+        {/* Show Skip link if abandoned twice or more */}
+        {abandonCount >= 2 && (
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <Text style={[styles.skipText, { color: colors.textMuted }]}>Skip for now</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -170,4 +201,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   confirmButtonText: { fontSize: 18, fontWeight: '700' },
+  skipButton: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  skipText: { fontSize: 14, fontWeight: '600' },
 });

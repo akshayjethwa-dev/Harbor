@@ -1,14 +1,20 @@
 // src/components/plan/EditPlanSettingsModal.tsx
 import React, { useState, useEffect } from "react";
-import { 
-  Modal, View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  Alert, Switch, Platform, KeyboardAvoidingView 
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 import { Plan } from "../../types/plan";
-import { updatePlanVisibilityAndCapacity } from "../../services/planService";
 import { useTheme } from "../../theme/ThemeContext";
-import { useThemedStyles } from "../../hooks/useThemedStyles";
-import { ThemeColors } from "../../theme/colors";
 
 interface Props {
   visible: boolean;
@@ -16,98 +22,171 @@ interface Props {
   plan: Plan;
 }
 
-const makeStyles = (c: ThemeColors) => StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === "ios" ? 40 : 20 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  title: { fontSize: 20, fontWeight: "800", color: c.text },
-  closeBtn: { fontSize: 20, color: c.textMuted, padding: 4 },
-  label: { fontSize: 13, fontWeight: "700", color: c.textMuted, marginBottom: 8, textTransform: "uppercase", marginTop: 16 },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: c.bgSubtle, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: c.border },
-  rowTextCol: { flex: 1, paddingRight: 16 },
-  rowTitle: { fontSize: 15, fontWeight: "700", color: c.text },
-  rowSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
-  input: { backgroundColor: c.bgSubtle, borderRadius: 10, padding: 12, fontSize: 15, color: c.text, borderWidth: 1, borderColor: c.border },
-  helpText: { fontSize: 11, color: c.textMuted, marginTop: 6 },
-  saveBtn: { backgroundColor: c.primary, padding: 16, borderRadius: 12, alignItems: "center", marginTop: 24 },
-  saveBtnText: { color: c.textInverse, fontSize: 16, fontWeight: "700" },
-});
-
 export default function EditPlanSettingsModal({ visible, onClose, plan }: Props) {
-  const styles = useThemedStyles(makeStyles);
-
-  const [isPublic, setIsPublic] = useState(false);
-  const [capacityStr, setCapacityStr] = useState("0");
+  const { colors } = useTheme();
   const [saving, setSaving] = useState(false);
+  const [capacity, setCapacity] = useState(String(plan.capacity || 0));
 
   useEffect(() => {
-    if (visible) {
-      setIsPublic(plan.visibility === "public");
-      setCapacityStr(plan.capacity.toString());
-    }
-  }, [visible, plan]);
+    if (visible) setCapacity(String(plan.capacity || 0));
+  }, [visible, plan.capacity]);
+
+  const approvedCount = plan.participants?.length ?? 0;
 
   const handleSave = async () => {
-    const capacityNum = parseInt(capacityStr, 10);
-    if (isNaN(capacityNum) || capacityNum < 0) {
-      return Alert.alert("Invalid Capacity", "Please enter a valid number (0 for unlimited).");
+    const newCapacity = parseInt(capacity, 10);
+    if (isNaN(newCapacity) || newCapacity < 0) {
+      Alert.alert("Invalid capacity", "Please enter a valid number.");
+      return;
     }
 
-    if (capacityNum > 0 && capacityNum < plan.spotsFilled) {
-      return Alert.alert(
-        "Capacity Too Low", 
-        `You currently have ${plan.spotsFilled} participants. Capacity cannot be less than this.`
+    // ✅ GUARDRAIL: Never allow capacity to be set below the number of
+    //    already-approved attendees. This prevents silent eviction.
+    if (newCapacity !== 0 && newCapacity < approvedCount) {
+      Alert.alert(
+        "Cannot reduce capacity",
+        `You have ${approvedCount} approved attendee${
+          approvedCount === 1 ? "" : "s"
+        }. Please remove attendees first if you want to reduce the capacity to ${newCapacity}.`,
+        [{ text: "OK", style: "default" }]
       );
+      return;
     }
 
     setSaving(true);
     try {
-      await updatePlanVisibilityAndCapacity(
-        plan.id,
-        isPublic ? "public" : "private",
-        capacityNum
-      );
+      const updates: any = {
+        capacity: newCapacity,
+        updatedAt: serverTimestamp(),
+      };
+
+      // If the new capacity is equal to the number of attendees, mark as full.
+      // If it's higher, reopen the plan.
+      if (newCapacity > 0) {
+        updates.status =
+          approvedCount >= newCapacity ? "full" : "open";
+      }
+
+      await updateDoc(doc(db, "plans", plan.id), updates);
       onClose();
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Error", e.message || "Failed to save settings.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.backdrop}>
-        <View style={styles.sheet}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={[styles.container, { backgroundColor: colors.bg }]}>
           <View style={styles.header}>
-            <Text style={styles.title}>Plan Settings</Text>
-            <TouchableOpacity onPress={onClose}><Text style={styles.closeBtn}>✕</Text></TouchableOpacity>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Edit Plan Settings
+            </Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={{ fontSize: 20, color: colors.textMuted }}>✕</Text>
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Visibility</Text>
-          <View style={styles.row}>
-            <View style={styles.rowTextCol}>
-              <Text style={styles.rowTitle}>Make Plan Public</Text>
-              <Text style={styles.rowSub}>If enabled, anyone in the city can discover and request to join this plan.</Text>
-            </View>
-            <Switch value={isPublic} onValueChange={setIsPublic} trackColor={{ true: styles.saveBtn.backgroundColor }} />
-          </View>
+          <ScrollView contentContainerStyle={styles.content}>
+            {/* Capacity Field */}
+            <Text style={[styles.label, { color: colors.text }]}>Max capacity</Text>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              {approvedCount} approved attendee{approvedCount === 1 ? "" : "s"} currently.
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.bgSubtle,
+                },
+              ]}
+              value={capacity}
+              onChangeText={setCapacity}
+              keyboardType="number-pad"
+              placeholder="0 for unlimited"
+              placeholderTextColor={colors.textMuted}
+            />
+            {parseInt(capacity, 10) > 0 && parseInt(capacity, 10) < approvedCount && (
+              <Text style={[styles.errorText, { color: colors.danger }]}>
+                Capacity must be at least {approvedCount} (current attendees) or 0 for unlimited.
+              </Text>
+            )}
 
-          <Text style={styles.label}>Capacity</Text>
-          <TextInput
-            style={styles.input}
-            value={capacityStr}
-            onChangeText={setCapacityStr}
-            keyboardType="number-pad"
-            placeholder="0"
-          />
-          <Text style={styles.helpText}>Set to 0 for unlimited capacity.</Text>
-
-          <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
-            <Text style={styles.saveBtnText}>{saving ? "Saving..." : "Save Settings"}</Text>
-          </TouchableOpacity>
+            {/* Save Button */}
+            <TouchableOpacity
+              style={[
+                styles.saveBtn,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: saving ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color={colors.textInverse} />
+              ) : (
+                <Text style={[styles.saveBtnText, { color: colors.textInverse }]}>
+                  Save Changes
+                </Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  container: {
+    width: "100%",
+    maxWidth: 400,
+    borderRadius: 24,
+    overflow: "hidden",
+    maxHeight: "80%",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(150,150,150,0.15)",
+  },
+  title: { fontSize: 20, fontWeight: "800" },
+  content: { padding: 20, paddingBottom: 32 },
+  label: { fontSize: 15, fontWeight: "600", marginBottom: 6 },
+  hint: { fontSize: 13, marginBottom: 12 },
+  input: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    fontSize: 16,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  saveBtn: {
+    marginTop: 24,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  saveBtnText: { fontSize: 16, fontWeight: "700" },
+});

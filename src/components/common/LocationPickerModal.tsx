@@ -1,5 +1,5 @@
 // src/components/common/LocationPickerModal.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -16,11 +16,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-
 import { INDIAN_CITIES } from '../../constants/cities';
 import { useTheme } from '../../theme/ThemeContext';
 import { Spacing, Typography } from '../../constants/theme';
-// ✅ Import the new geocoding helper
 import { reverseGeocode } from '../../lib/geocoding';
 
 type Props = {
@@ -39,6 +37,15 @@ export default function LocationPickerModal({
   const { colors } = useTheme();
   const [search, setSearch] = useState('');
   const [isLocating, setIsLocating] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+
+  // Reset permission state when modal opens
+  useEffect(() => {
+    if (visible) {
+      setPermissionDenied(false);
+      setSearch('');
+    }
+  }, [visible]);
 
   const filteredCities = INDIAN_CITIES.filter((c) =>
     c.toLowerCase().includes(search.toLowerCase())
@@ -46,13 +53,13 @@ export default function LocationPickerModal({
 
   const handleUseCurrentLocation = async () => {
     setIsLocating(true);
+    setPermissionDenied(false);
+
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
+      
       if (status !== 'granted') {
-        Alert.alert(
-          'Permission Denied', 
-          'Please enable location services in your settings to use this feature.'
-        );
+        setPermissionDenied(true);
         setIsLocating(false);
         return;
       }
@@ -61,18 +68,16 @@ export default function LocationPickerModal({
         accuracy: Location.Accuracy.Balanced,
       });
 
-      // ✅ Use our custom fetch-based geocoder instead of the broken Expo method
       const detectedCity = await reverseGeocode(
         location.coords.latitude,
         location.coords.longitude
       );
 
       if (detectedCity) {
-        // Find closest match in our list to ensure consistency
-        const matchedCity = INDIAN_CITIES.find(
-          c => c.toLowerCase() === detectedCity.toLowerCase()
-        ) || detectedCity;
-        
+        const matchedCity =
+          INDIAN_CITIES.find(
+            (c) => c.toLowerCase() === detectedCity.toLowerCase()
+          ) || detectedCity;
         onSelectCity(matchedCity);
         onClose();
       } else {
@@ -86,68 +91,114 @@ export default function LocationPickerModal({
     }
   };
 
+  const handleManualCitySelect = (city: string) => {
+    onSelectCity(city);
+    onClose();
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
       <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>Change Location</Text>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeBtn}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Close location picker"
-            >
+            <Text style={[styles.title, { color: colors.text }]}>
+              Change Location
+            </Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
+          {/* Rationale (always visible, emphasized if permission denied) */}
+          <View
+            style={[
+              styles.rationaleBox,
+              {
+                backgroundColor: permissionDenied
+                  ? colors.warning + '15'
+                  : colors.bgSubtle,
+              },
+            ]}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={permissionDenied ? colors.warning : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.rationaleText,
+                {
+                  color: permissionDenied ? colors.warning : colors.textSecondary,
+                },
+              ]}
+            >
+              {permissionDenied
+                ? 'We need your city to show plans near you. You can change this anytime.'
+                : 'Choose a city or use your current location.'}
+            </Text>
+          </View>
+
           {/* GPS Button */}
           <TouchableOpacity
-            style={[styles.gpsBtn, { backgroundColor: colors.primary + '15' }]}
+            style={[
+              styles.gpsBtn,
+              { borderColor: colors.primary, backgroundColor: colors.primary + '10' },
+            ]}
             onPress={handleUseCurrentLocation}
             disabled={isLocating}
-            accessibilityRole="button"
-            accessibilityLabel="Use my current location"
           >
             {isLocating ? (
-              <ActivityIndicator size="small" color={colors.primary} />
+              <ActivityIndicator color={colors.primary} />
             ) : (
-              <Ionicons name="location" size={20} color={colors.primary} />
+              <>
+                <Ionicons name="locate" size={20} color={colors.primary} />
+                <Text style={[styles.gpsBtnText, { color: colors.primary }]}>
+                  Use My Current Location
+                </Text>
+              </>
             )}
-            <Text style={[styles.gpsBtnText, { color: colors.primary }]}>
-              {isLocating ? 'Detecting location...' : 'Use My Current Location'}
-            </Text>
           </TouchableOpacity>
 
+          {/* Divider */}
           <View style={styles.divider}>
-            <View style={[styles.line, { backgroundColor: colors.border }]} />
-            <Text style={[styles.orText, { color: colors.textMuted }]}>OR SEARCH</Text>
-            <View style={[styles.line, { backgroundColor: colors.border }]} />
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.textMuted }]}>
+              OR SEARCH
+            </Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
           </View>
 
           {/* Search Bar */}
-          <View style={[styles.searchContainer, { backgroundColor: colors.bgSubtle }]}>
-            <Ionicons name="search" size={20} color={colors.textMuted} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search for a city..."
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-              accessibilityLabel="Search cities"
-            />
-          </View>
+          <TextInput
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: colors.bgSubtle,
+                color: colors.text,
+                borderColor: colors.border,
+              },
+            ]}
+            placeholder="Search cities..."
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+          />
 
           {/* City List */}
           <FlatList
             data={filteredCities}
-            keyExtractor={(item, index) => `${item}-${index}`}
+            keyExtractor={(item) => item}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
@@ -157,12 +208,9 @@ export default function LocationPickerModal({
                   style={[
                     styles.cityItem,
                     { borderBottomColor: colors.border },
-                    isSelected && { backgroundColor: colors.primary + '15' },
+                    isSelected && { backgroundColor: colors.primary + '10' },
                   ]}
-                  onPress={() => {
-                    onSelectCity(item);
-                    onClose();
-                  }}
+                  onPress={() => handleManualCitySelect(item)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
                   accessibilityLabel={`Select ${item}`}
@@ -171,7 +219,6 @@ export default function LocationPickerModal({
                     style={[
                       styles.cityText,
                       { color: isSelected ? colors.primary : colors.text },
-                      isSelected && { fontWeight: '700' },
                     ]}
                   >
                     {item}
@@ -183,7 +230,7 @@ export default function LocationPickerModal({
               );
             }}
             ListEmptyComponent={
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                 No cities found matching "{search}"
               </Text>
             }
@@ -207,6 +254,17 @@ const styles = StyleSheet.create({
   },
   title: { ...Typography.title2, fontWeight: '700' },
   closeBtn: { padding: Spacing.xs },
+  rationaleBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    borderRadius: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  rationaleText: { flex: 1, fontSize: 13, lineHeight: 18 },
   gpsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -215,13 +273,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingVertical: Spacing.md,
     borderRadius: Spacing.sm,
+    borderWidth: 1,
     gap: Spacing.sm,
-    minHeight: 48,
   },
-  gpsBtnText: {
-    ...Typography.subhead,
-    fontWeight: '700',
-  },
+  gpsBtnText: { ...Typography.body, fontWeight: '600' },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -229,44 +284,30 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.md,
     gap: Spacing.sm,
   },
-  line: {
-    flex: 1,
-    height: 1,
-  },
-  orText: {
-    ...Typography.label,
-    fontWeight: '600',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 12, fontWeight: '600' },
+  searchInput: {
     marginHorizontal: Spacing.lg,
     paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: Spacing.sm,
-    height: 44,
+    borderWidth: 1,
+    fontSize: 16,
+    marginBottom: Spacing.sm,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: Spacing.sm,
-    ...Typography.body,
-  },
-  listContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
-    marginTop: Spacing.md,
-  },
+  listContent: { paddingBottom: Spacing.xl },
   cityItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    minHeight: 48,
+    borderBottomWidth: 1,
   },
   cityText: { ...Typography.body },
   emptyText: {
-    ...Typography.body,
     textAlign: 'center',
     marginTop: Spacing.xl,
+    fontSize: 14,
   },
 });

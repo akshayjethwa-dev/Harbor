@@ -26,6 +26,7 @@ import {
   approveJoinRequest,
   declineJoinRequest,
 } from "../../src/services/planJoinService";
+import { getCheckInState } from "../../src/services/checkinService";
 import { Plan, PlanJoinRequest, PlanParticipant } from "../../src/types/plan";
 import { TimeBlockRanges, GarbaCrewUser } from "../../src/types/user";
 import { getActivityMeta } from "../../src/constants/activities";
@@ -49,7 +50,8 @@ import ReportProfileModal from "../../src/components/profile/ReportProfileModal"
 import ContextualTip from "../../src/components/onboarding/ContextualTip";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import InvitePromptModal from "../../src/components/referral/InvitePromptModal";
-import Toast from "../../src/components/common/Toast"; // <-- Toast integration
+import Toast from "../../src/components/common/Toast";
+import CheckInModal from "../../src/components/plan/CheckInModal";
 
 function formatFullDate(ts: any): string {
   if (!ts) return "TBD";
@@ -82,10 +84,10 @@ export default function PlanDetailScreen() {
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [showCheckInModal, setShowCheckInModal] = useState(false); 
   const [reportTarget, setReportTarget] = useState<PlanParticipant | null>(null);
   const [showInvitePrompt, setShowInvitePrompt] = useState(false);
 
-  // Toast state
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
@@ -264,7 +266,8 @@ export default function PlanDetailScreen() {
         setToastMessage("Request sent. The host will review within 48 hours.");
         setToastVisible(true);
       } else if (result?.status === "waitlisted") {
-        setToastMessage("Waitlisted. We'll notify you if a spot opens up.");
+        // ✅ Handle the race condition response gracefully
+        setToastMessage("This plan just filled up. You're on the waitlist.");
         setToastVisible(true);
       } else {
         showAlert("Done", `Join result: ${result?.status ?? "unknown"}.`);
@@ -373,10 +376,14 @@ export default function PlanDetailScreen() {
     : false;
 
   const isHost = role === "host";
+  const isParticipant = role === "participant";
   const showAttendanceBtn = isHost && hasPlanEnded && !plan.attendanceMarked;
   const isMarkedNoShow = plan.noShowUids?.includes(user?.uid || "");
   const showDisputeBtn = isMarkedNoShow && hasPlanEnded;
   const showInsightsBtn = isHost && hasPlanEnded && plan.status !== "cancelled";
+
+  const checkInState = user ? getCheckInState(plan, user.uid) : { canCheckIn: false, alreadyCheckedIn: false };
+  const checkedInCount = Object.keys(plan.checkIns || {}).length;
 
   let cta = "I'm In";
   const ctaDisabled = false;
@@ -524,6 +531,41 @@ export default function PlanDetailScreen() {
               </View>
             </View>
           </View>
+
+          {isHost && checkInState.canCheckIn && (
+            <TouchableOpacity
+              style={[styles.actionCardBtn, { backgroundColor: "#E3F2FD", borderColor: "#2196F3", marginBottom: 16 }]}
+              onPress={() => setShowCheckInModal(true)}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 20 }}>📱</Text>
+                <Text style={[styles.actionCardText, { color: "#2196F3" }]}>Show Check-In QR</Text>
+              </View>
+              <Text style={[styles.actionCardChevron, { color: "#2196F3" }]}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {isParticipant && !checkInState.alreadyCheckedIn && checkInState.canCheckIn && (
+            <TouchableOpacity
+              style={[styles.actionCardBtn, { backgroundColor: "#E8F5E9", borderColor: "#4CAF50", marginBottom: 16 }]}
+              onPress={() => setShowCheckInModal(true)}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 20 }}>📷</Text>
+                <Text style={[styles.actionCardText, { color: "#2E7D32" }]}>Scan to Check In</Text>
+              </View>
+              <Text style={[styles.actionCardChevron, { color: "#2E7D32" }]}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {isParticipant && checkInState.alreadyCheckedIn && (
+            <View style={[styles.actionCardBtn, { backgroundColor: "#E8F5E9", borderColor: "#4CAF50", marginBottom: 16 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 20 }}>✅</Text>
+                <Text style={[styles.actionCardText, { color: "#2E7D32" }]}>You are checked in</Text>
+              </View>
+            </View>
+          )}
 
           {(plan.requirements.verifiedOnly ||
             plan.requirements.womenOnly ||
@@ -777,6 +819,33 @@ export default function PlanDetailScreen() {
             </View>
           )}
 
+          {isHost && (
+            <View style={{ marginTop: 24 }}>
+              <Text style={styles.sectionTitle}>
+                Checked In ({checkedInCount} / {plan.participants.length})
+              </Text>
+              {checkedInCount === 0 ? (
+                <Text style={styles.emptyText}>No one has checked in yet.</Text>
+              ) : (
+                <View style={styles.avatarRow}>
+                  {Object.values(plan.checkIns || {}).map((ci: any) => (
+                    <View key={ci.uid} style={styles.participantWrap}>
+                      {ci.photoUrl ? (
+                        <Image source={{ uri: ci.photoUrl }} style={styles.participant} />
+                      ) : (
+                        <View style={[styles.participant, styles.avatarFallback]}>
+                          <Text style={styles.avatarInitial}>
+                            {ci.name?.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
           <View style={{ height: 120 }} />
         </View>
       </ScrollView>
@@ -870,6 +939,13 @@ export default function PlanDetailScreen() {
         visible={showAttendanceModal}
         onClose={() => setShowAttendanceModal(false)}
         plan={plan}
+      />
+
+      <CheckInModal
+        visible={showCheckInModal}
+        onClose={() => setShowCheckInModal(false)}
+        plan={plan}
+        role={isHost ? "host" : "attendee"}
       />
 
       {reportTarget && (

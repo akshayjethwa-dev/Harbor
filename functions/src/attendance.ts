@@ -6,7 +6,7 @@ import * as logger from "firebase-functions/logger";
 
 const db = admin.firestore();
 
-// 1. Process No-Shows & Apply Penalties
+// 1. Process Manual No-Shows & Apply Penalties (Triggered by Host)
 export const onAttendanceMarked = onDocumentUpdated("plans/{planId}", async (event) => {
   if (!event.data) return;
   const before = event.data.before.data();
@@ -25,17 +25,13 @@ export const onAttendanceMarked = onDocumentUpdated("plans/{planId}", async (eve
     const userRef = db.collection("users").doc(uid);
     const userSnap = await userRef.get();
     
-    // FIX 1: exists is a property in Admin SDK, not a function
     if (!userSnap.exists) continue;
     
-    // FIX 2 & 3: Ensure data() is not undefined
     const user = userSnap.data();
     if (!user) continue;
 
     const currentScore = user.guestScore ?? 50;
     const newNoShowCount = (user.noShowCount || 0) + 1;
-
-    // Penalty: -10 Guest Score per no-show
     const newScore = Math.max(0, currentScore - 10);
 
     const updates: any = {
@@ -43,7 +39,6 @@ export const onAttendanceMarked = onDocumentUpdated("plans/{planId}", async (eve
       noShowCount: newNoShowCount,
     };
 
-    // Suspension Logic: 3 strikes = 7-day ban
     if (newNoShowCount >= 3) {
       const suspendUntil = new Date();
       suspendUntil.setDate(suspendUntil.getDate() + 7);
@@ -53,50 +48,85 @@ export const onAttendanceMarked = onDocumentUpdated("plans/{planId}", async (eve
 
     batch.update(userRef, updates);
 
-    // Refund Logic (if paid plan)
     if (isPaid) {
       logger.info(`Triggering refund for no-show user ${uid} on paid plan ${planId}`);
-      // In a real app, you would call your payment provider here (e.g., Stripe/Razorpay refund)
     }
   }
 
   await batch.commit();
-  logger.info(`Processed attendance for plan ${planId}. ${noShowUids.length} no-shows.`);
+  logger.info(`Processed manual attendance for plan ${planId}.`);
 });
 
-// 2. Auto-Mark Fallback (Runs 24h after plan ends)
-export const autoMarkAttendance = onSchedule(
-  { schedule: "0 2 * * *", timeZone: "UTC" }, // Daily at 2 AM
+// 2. Auto-Finalizer (Runs daily at 2 AM)
+// Finds plans that ended, checks the checkIns, and applies credits/penalties automatically.
+export const autoFinalizeAttendance = onSchedule(
+  { schedule: "0 2 * * *", timeZone: "UTC" },
   async () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
 
     const plansSnap = await db.collection("plans")
-      .where("status", "==", "open") 
+      .where("status", "in", ["open", "full"]) // Only active plans
       .where("attendanceMarked", "==", false)
       .where("endTime", "<=", admin.firestore.Timestamp.fromDate(yesterday))
       .get();
 
     if (plansSnap.empty) return;
 
-    const batch = db.batch();
-    plansSnap.forEach((doc) => {
+    for (const doc of plansSnap.docs) {
       const plan = doc.data();
       const participants: string[] = plan.participants || [];
       const checkIns: Record<string, any> = plan.checkIns || {};
       
-      // Anyone who didn't check in is a no-show
-      const noShowUids = participants.filter(uid => !checkIns[uid]);
+      const noShowUids: string[] = [];
+      const checkedInUids: string[] = [];
+      const batch = db.batch();
 
+      for (const uid of participants) {
+        const userRef = db.collection("users").doc(uid);
+        const isCheckedIn = !!checkIns[uid];
+
+        if (isCheckedIn) {
+          checkedInUids.push(uid);
+          // Award Show-up Credit
+          batch.update(userRef, {
+            trustBalance: admin.firestore.FieldValue.increment(5),
+            completedPlans: admin.firestore.FieldValue.increment(1),
+          });
+        } else {
+          noShowUids.push(uid);
+          // Apply No-Show Penalty
+          const userSnap = await userRef.get();
+          if (userSnap.exists) {
+            const user = userSnap.data()!;
+            const currentScore = user.guestScore ?? 50;
+            const newNoShowCount = (user.noShowCount || 0) + 1;
+            
+            const updates: any = {
+              trustBalance: admin.firestore.FieldValue.increment(-10),
+              guestScore: Math.max(0, currentScore - 10),
+              noShowCount: newNoShowCount,
+            };
+
+            if (newNoShowCount >= 3) {
+              const suspendUntil = new Date();
+              suspendUntil.setDate(suspendUntil.getDate() + 7);
+              updates.suspendedUntil = admin.firestore.Timestamp.fromDate(suspendUntil);
+            }
+            batch.update(userRef, updates);
+          }
+        }
+      }
+
+      // Finalize the plan
       batch.update(doc.ref, {
         noShowUids,
-        excusedUids: [],
         attendanceMarked: true,
         noShowMarkedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-    });
 
-    await batch.commit();
-    logger.info(`Auto-marked attendance for ${plansSnap.size} expired plans.`);
+      await batch.commit();
+      logger.info(`Auto-finalized attendance for plan ${doc.id}. ${checkedInUids.length} credited, ${noShowUids.length} penalized.`);
+    }
   }
 );

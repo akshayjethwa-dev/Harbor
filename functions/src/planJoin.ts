@@ -16,7 +16,7 @@ const TRUST_BLOCK_JOIN = 5;
 const REQUEST_AUTO_DECLINE_HOURS = 48;
 
 // ─────────────────────────────────────────────────────────
-// Story 3.4 + 3.5: Join a Plan
+// Story 3.4 + 3.5: Join a Plan (Atomic capacity enforcement)
 // ─────────────────────────────────────────────────────────
 export const joinPlan = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in");
@@ -31,7 +31,9 @@ export const joinPlan = onCall(async (request) => {
   const planRef = db.collection("plans").doc(planId);
   const userRef = db.collection("users").doc(uid);
 
-  // Read both in a transaction
+  // ✅ ALL reads and writes happen inside the transaction.
+  // Firestore will automatically retry this block if the plan document
+  // is modified by another transaction before this one commits.
   const result = await db.runTransaction(async (tx: Transaction) => {
     const [planSnap, userSnap] = await Promise.all([
       tx.get(planRef),
@@ -56,6 +58,9 @@ export const joinPlan = onCall(async (request) => {
     }
     if ((plan.pendingRequests ?? []).some((r: any) => r.uid === uid)) {
       throw new HttpsError("already-exists", "Request already pending");
+    }
+    if ((plan.waitlist ?? []).includes(uid)) {
+      throw new HttpsError("already-exists", "You're already on the waitlist");
     }
 
     // Trust Balance check
@@ -126,16 +131,20 @@ export const joinPlan = onCall(async (request) => {
       return { status: "requested" as const, warning: null };
     }
 
-    // Auto-approve → check capacity
+    // ✅ ATOMIC CAPACITY CHECK — inside the transaction.
+    // If another transaction already filled the last seat, Firestore
+    // will have re-run this block with fresh data, and we fall through
+    // to the waitlist branch instead of oversubscribing.
     if (plan.capacity > 0 && (plan.spotsFilled ?? 0) >= plan.capacity) {
-      // Full → waitlist
+      // Plan is full → waitlist instead of failing hard.
       tx.update(planRef, {
         waitlist: FieldValue.arrayUnion(uid),
         updatedAt: FieldValue.serverTimestamp(),
       });
+
       return {
         status: "waitlisted" as const,
-        warning: "Plan is full — you're on the waitlist.",
+        warning: "This plan just filled up. You're on the waitlist.",
       };
     }
 

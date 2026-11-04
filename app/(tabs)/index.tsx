@@ -31,9 +31,12 @@ import { announce } from '../../src/lib/a11y';
 import LocationPickerModal from '../../src/components/common/LocationPickerModal';
 import { updateUserCity } from '../../src/services/userService';
 
-// NEW: Import the Today's Picks and Quiz Prompt components
 import TodayPicksSection from "../../src/components/discover/TodayPicksSection";
 import QuizPromptChip from "../../src/components/discover/QuizPromptChip";
+
+// NEW IMPORTS for Stale Intent Reevaluation
+import IntentReevaluationModal from '../../src/components/common/IntentReevaluationModal';
+import { useIntentReevaluation } from '../../src/hooks/useIntentReevaluation';
 
 export default function DiscoverScreen() {
   const router = useRouter();
@@ -56,9 +59,24 @@ export default function DiscoverScreen() {
   const [localCity, setLocalCity] = useState<string | undefined>(user?.city);
   const [updatingCity, setUpdatingCity] = useState(false);
 
+  const [showIntentBanner, setShowIntentBanner] = useState(false);
+
+  // NEW: Hook to manage intent re-evaluation
+  const { 
+    showPrompt, 
+    acceptSwitch, 
+    dismissPrompt: dismissReevaluationPrompt 
+  } = useIntentReevaluation();
+
   useEffect(() => {
     setLocalCity(user?.city);
-  }, [user?.city]);
+    // If the user doesn't have a primary_intent set, show the banner
+    if (user && !user.primary_intent) {
+      setShowIntentBanner(true);
+    } else {
+      setShowIntentBanner(false);
+    }
+  }, [user?.city, user?.primary_intent]);
 
   const addError = (newError: AppError) => {
     setErrors((prev) => {
@@ -166,6 +184,21 @@ export default function DiscoverScreen() {
 
       <ErrorState errors={errors} onDismiss={removeError} />
 
+      {/* Persistent Intent Banner */}
+      {showIntentBanner && (
+        <View style={[styles.intentBanner, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+          <Text style={[styles.intentBannerText, { color: colors.text }]}>
+            Tell us what you're here for — it helps us show better plans.
+          </Text>
+          <TouchableOpacity 
+            style={[styles.intentBannerBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/onboarding/intent' as any)}
+          >
+            <Text style={{ color: colors.textInverse, fontWeight: '700', fontSize: 13 }}>Set Intent</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -184,10 +217,8 @@ export default function DiscoverScreen() {
           onDismiss={dismissPrompt}
         />
 
-        {/* NEW: Vibe Quiz Prompt Chip */}
         <QuizPromptChip />
 
-        {/* Today's Picks Section */}
         <TodayPicksSection />
 
         <CategoryPills
@@ -249,6 +280,13 @@ export default function DiscoverScreen() {
         onClose={() => setIsLocationModalOpen(false)}
         onSelectCity={handleCityChange}
       />
+
+      {/* NEW: Intent Reevaluation Modal */}
+      <IntentReevaluationModal
+        visible={showPrompt}
+        onAccept={acceptSwitch}
+        onDismiss={dismissReevaluationPrompt}
+      />
     </SafeAreaView>
   );
 }
@@ -267,6 +305,27 @@ const styles = StyleSheet.create({
   greeting: {
     ...Typography.subhead,
     fontWeight: '600', 
+  },
+  intentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: Spacing.sm,
+  },
+  intentBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    marginRight: Spacing.sm,
+  },
+  intentBannerBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 8,
   },
   sectionHeader: {
     flexDirection: 'row',

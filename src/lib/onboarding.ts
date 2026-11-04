@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const DISMISS_KEY = '@Kithra/onboarding_banner_dismissed_at';
 const SQUAD_CREATED_KEY = '@Kithra/squad_created_at';
 const TRUST_PRIMER_SEEN_KEY = '@Kithra/trust_primer_seen';
+const INTENT_ABANDON_COUNT_KEY = '@Kithra/intent_abandon_count'; // <-- NEW
 
 // ─── 7-day default ────────────────────────────────────────────
 export const BANNER_REAPPEAR_MS = 7 * 24 * 60 * 60 * 1000;
@@ -32,7 +33,6 @@ export async function shouldShowBanner(): Promise<boolean> {
 }
 
 // ─── Trust Primer ───────────────────────────────────────────────
-
 /** Returns true if the user has already seen the Trust Primer. */
 export async function hasSeenTrustPrimer(): Promise<boolean> {
   const seen = await AsyncStorage.getItem(TRUST_PRIMER_SEEN_KEY);
@@ -44,7 +44,32 @@ export async function markTrustPrimerSeen(): Promise<void> {
   await AsyncStorage.setItem(TRUST_PRIMER_SEEN_KEY, String(Date.now()));
 }
 
+// ─── NEW: Intent Abandonment Tracking ──────────────────────────────
+/** Increments and returns the number of times the intent screen was abandoned. */
+export async function incrementIntentAbandonCount(): Promise<number> {
+  const current = await AsyncStorage.getItem(INTENT_ABANDON_COUNT_KEY);
+  const count = (current ? parseInt(current, 10) : 0) + 1;
+  await AsyncStorage.setItem(INTENT_ABANDON_COUNT_KEY, String(count));
+  return count;
+}
+
+/** Returns the current abandon count. */
+export async function getIntentAbandonCount(): Promise<number> {
+  const val = await AsyncStorage.getItem(INTENT_ABANDON_COUNT_KEY);
+  return val ? parseInt(val, 10) : 0;
+}
+
+/** Resets the abandon count (e.g., after the user successfully selects an intent). */
+export async function resetIntentAbandonCount(): Promise<void> {
+  await AsyncStorage.removeItem(INTENT_ABANDON_COUNT_KEY);
+}
+
 /** Dev helper — reset both flags (useful while testing). */
 export async function resetOnboardingFlags(): Promise<void> {
-  await AsyncStorage.multiRemove([DISMISS_KEY, SQUAD_CREATED_KEY, TRUST_PRIMER_SEEN_KEY]);
+  await AsyncStorage.multiRemove([
+    DISMISS_KEY,
+    SQUAD_CREATED_KEY,
+    TRUST_PRIMER_SEEN_KEY,
+    INTENT_ABANDON_COUNT_KEY,
+  ]);
 }

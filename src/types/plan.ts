@@ -118,6 +118,15 @@ export interface Plan {
   createdAt: Timestamp | any;
   updatedAt: Timestamp | any;
 
+  // ─── Harbor Presents Curated Events ───
+  isCurated?: boolean;
+  curatedLabel?: string; // e.g., "Harbor Presents"
+  curatedCategory?: string; // e.g., "coffee", "board games"
+  facilitatorUid?: string | null;
+  facilitatorName?: string | null;
+  facilitatorPhotoUrl?: string | null;
+  sourceTemplateId?: string | null; // Links repeat events to the original
+
   // ─── Feature 8: Check-in ───
   checkIns?: Record<string, CheckInRecord>;
   noShowUids?: string[];
